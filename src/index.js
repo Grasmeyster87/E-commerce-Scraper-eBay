@@ -1,11 +1,15 @@
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { EbayScraper } from './services/scraper.js';
+import { FileHandler } from './utils/fileHandler.js';
 
 puppeteer.use(StealthPlugin());
 
 async function run() {
-    const browser = await puppeteer.launch({ headless: true });
+    const browser = await puppeteer.launch({ 
+    headless: false, // Тепер ви побачите вікно браузера
+    slowMo: 50,      // Трішки уповільнимо дії 
+    });
     const page = await browser.newPage();
 
     const scraper = new EbayScraper(page);
@@ -31,6 +35,8 @@ async function run() {
 
         console.table(allProducts.slice(0, 10)); // Вивід перших 10 результатів
         console.log(`Total scraped: ${allProducts.length}`);
+        console.log(`Total scraped: ${allProducts.length}`);
+        FileHandler.saveToCSV(allProducts, 'ebay_keyboards.csv');
     } catch (error) {
         console.error('An error occurred:', error);
     } finally {
