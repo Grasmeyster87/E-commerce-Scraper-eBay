@@ -91,3 +91,14 @@ For open source projects, say how it is licensed.
 
 ## Project status
 If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+
+
+### Порада для Upwork: Локальний профіль
+Ви використовуєте параметр `--user-data-dir`[cite: 2]. Це чудово для обходу блокувань, оскільки ви використовуєте свій реальний профіль Chrome з куками.
+
+**Однак зверніть увагу:** якщо у вас під час роботи скрипта відкритий звичайний Chrome з цим же профілем, це може спричинити конфлікт (Locked Profile) і помилки навігації. Для тестів краще закривати основний браузер або створити окрему папку для даних бота.
+
+### Чому цей досвід корисний для портфоліо?
+Виправлення таких "плаваючих" помилок навігації — це саме те, що відрізняє розробника середнього рівня від початківця. Обов'язково згадайте в описі на GitLab, що ви реалізували **Custom Navigation Handler** для стабільної пагінації на важких сайтах з динамічним контентом.
+
+Чи запрацювала пагінація після заміни `waitForNavigation` на `waitForFunction`?

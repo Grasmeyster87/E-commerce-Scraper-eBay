@@ -6,30 +6,32 @@ import { FileHandler } from './utils/fileHandler.js';
 puppeteer.use(StealthPlugin());
 
 async function run() {
-    const browser = await puppeteer.launch({ 
-    headless: false, // Тепер ви побачите вікно браузера
-    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', // путь к локальному браузеру
+    console.log('🔗 З\'єднання з відкритим браузером через CDP...');
     
-    slowMo: 50,      // Трішки уповільнимо дії      
-    args: [
-      '--start-maximized',// или '--start-fullscreen'
-      '--user-data-dir=C:\\Users\\Azal11\\AppData\\Local\\Google\\Chrome\\User Data'
-    ],
-    defaultViewport: null
-    });
-    const page = await browser.newPage();
-
-    const scraper = new EbayScraper(page);
-    const query = 'notebook laptop computer';
-    let allProducts = [];
-
+    let browser;
     try {
-        console.log(`Starting search for: ${query}...`);
+        // Підключаємося до локального порту, який ми відкрили
+        browser = await puppeteer.connect({
+            browserURL: 'http://127.0.0.1:9222',
+            defaultViewport: null,
+        });
+        
+        console.log('✅ Успішно підключено!');
+
+        // Отримуємо всі відкриті вкладки і беремо першу, 
+        // або створюємо нову, якщо відкритих немає
+        const pages = await browser.pages();
+        const page = pages.length > 0 ? pages[0] : await browser.newPage();
+
+        const scraper = new EbayScraper(page);
+        const query = 'notebook laptop computer';
+        let allProducts = [];
+
+        console.log(`🔍 Починаємо пошук: ${query}...`);
         await scraper.search(query);
 
-        // Скрапимо перші 2 сторінки для прикладу
         for (let i = 1; i <= 2; i++) {
-            console.log(`Scraping page ${i}...`);
+            console.log(`📄 Парсинг сторінки ${i}...`);
             const products = await scraper.scrapePage();
             allProducts = allProducts.concat(products);
 
@@ -40,14 +42,19 @@ async function run() {
             }
         }
 
-        console.table(allProducts.slice(0, 10)); // Вивід перших 10 результатів
-        console.log(`Total scraped: ${allProducts.length}`);
-        console.log(`Total scraped: ${allProducts.length}`);
+        console.table(allProducts.slice(0, 10)); 
+        console.log(`📊 Всього зібрано: ${allProducts.length} товарів.`);
         FileHandler.saveToCSV(allProducts, 'ebay_keyboards.csv');
+
     } catch (error) {
-        console.error('An error occurred:', error);
+        console.error('❌ Виникла помилка. Перевірте, чи запущено Chrome з портом 9222.', error);
     } finally {
-        await browser.close();
+        // ВАЖЛИВО: ми робимо disconnect(), а не close(), 
+        // щоб браузер залишився відкритим для наступних запусків
+        if (browser) {
+            await browser.disconnect();
+            console.log('🔌 Відключено від браузера.');
+        }
     }
 }
 
