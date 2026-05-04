@@ -20,7 +20,7 @@ async function run() {
     const page = await browser.newPage();
 
     const scraper = new EbayScraper(page);
-    const query = 'mechanical keyboard';
+    const query = 'notebook laptop computer';
     let allProducts = [];
 
     try {
