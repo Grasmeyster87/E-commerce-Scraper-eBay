@@ -8,7 +8,14 @@ puppeteer.use(StealthPlugin());
 async function run() {
     const browser = await puppeteer.launch({ 
     headless: false, // Тепер ви побачите вікно браузера
-    slowMo: 50,      // Трішки уповільнимо дії 
+    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', // путь к локальному браузеру
+    
+    slowMo: 50,      // Трішки уповільнимо дії      
+    args: [
+      '--start-maximized',// или '--start-fullscreen'
+      '--user-data-dir=C:\\Users\\Azal11\\AppData\\Local\\Google\\Chrome\\User Data'
+    ],
+    defaultViewport: null
     });
     const page = await browser.newPage();
 
