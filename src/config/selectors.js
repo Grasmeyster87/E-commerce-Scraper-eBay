@@ -1,10 +1,10 @@
-/* export const selectors = {
-    productCard: '.s-card',
-    title: '.su-styled-text .primary default',
-    price: '.su-styled-text .primary .bold large-1 .s-card__price',
-    link: '.s-card__link',
+export const selectors = {
+    productCard: 'div.su-card-container',
+    title: 'span.su-styled-text.primary.default',
+    price: 'span.su-styled-text.primary.bold.large-1.s-card__price',
+    link: 'a.s-card__link.image-treatment',
     paginationNext: 'a.pagination__next'
-}; */
+};
 
 /* export const selectors = {
     // Основний контейнер кожного товару в списку
@@ -19,7 +19,7 @@
     paginationNext: 'a.pagination__next'
 }; */
 
-export const selectors = {
+/* export const selectors = {
     // Основний контейнер кожного товару в списку
     productCard: '.s-card', 
     // Заголовок товару
@@ -30,4 +30,4 @@ export const selectors = {
     link: 'a.s-card__link',
     // Кнопка наступної сторінки
     paginationNext: '.pagination__next .icon-link'
-};
+}; */
