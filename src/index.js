@@ -2,9 +2,11 @@ import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { EbayScraper } from './services/scraper.js';
 import { FileHandler } from './utils/fileHandler.js';
+import { launchBrowser } from './utils/launcher.js';
 
 puppeteer.use(StealthPlugin());
-
+// 1. Запускаємо браузер як окремий процес
+    await launchBrowser();
 async function run() {
     console.log("🔗 З'єднання з відкритим браузером через CDP...");
 
