@@ -1,4 +1,4 @@
-import puppeteer from 'puppeteer-extra';
+/*import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { EbayScraper } from './services/scraper.js';
 import { FileHandler } from './utils/fileHandler.js';
@@ -74,4 +74,108 @@ async function run() {
     }
 }
 
-run();
+run();*/
+
+/* import puppeteer from 'puppeteer';
+import { launchBrowser } from './utils/launcher.js';
+import { EbayScraper } from './services/scraper.js';
+
+async function main() {
+    try {
+        // 1. Запуск браузера (ваша нова функція з профілем)
+        await launchBrowser();
+
+        const browser = await puppeteer.connect({
+            browserURL: 'http://127.0.0.1:9222',
+            defaultViewport: null
+        });
+
+        const pages = await browser.pages();
+        const page = pages.length > 0 ? pages[0] : await browser.newPage();
+        
+        const scraper = new EbayScraper(page);
+
+        console.log("🔍 Починаємо структурний пошук...");
+        await scraper.search('notebook laptop');
+
+        // Парсимо перші 2 сторінки для тесту
+        for (let i = 1; i <= 2; i++) {
+            console.log(`📄 Сторінка ${i}...`);
+            const data = await scraper.scrapePage();
+            console.table(data);
+
+            if (await scraper.hasNextPage()) {
+                await scraper.goToNextPage();
+            } else {
+                break;
+            }
+        }
+
+        console.log("✅ Готово!");
+        await browser.disconnect();
+
+    } catch (err) {
+        console.error("❌ Помилка:", err);
+    }
+}
+
+main(); */
+
+import puppeteer from 'puppeteer';
+import { launchBrowser } from './utils/launcher.js';
+import { EbayScraper } from './services/scraper.js';
+import { FileHandler } from './utils/fileHandler.js'; // Додано імпорт
+
+async function main() {
+    try {
+        await launchBrowser();
+
+        const browser = await puppeteer.connect({
+            browserURL: 'http://127.0.0.1:9222',
+            defaultViewport: null
+        });
+
+        const pages = await browser.pages();
+        const page = pages.length > 0 ? pages[0] : await browser.newPage();
+        
+        const scraper = new EbayScraper(page);
+        let allProducts = [];
+
+        console.log("🔍 Починаємо структурний пошук...");
+        await scraper.search('notebook laptop');
+
+        for (let i = 1; i <= 2; i++) {
+            console.log(`📄 Сторінка ${i}...`);
+            
+            // Зберігаємо дебаг-інфо
+            const html = await page.content();
+            const screenshot = await page.screenshot({ fullPage: false });
+            FileHandler.saveDebugInfo(html, screenshot, `page_${i}`);
+
+            const data = await scraper.scrapePage();
+            console.log(`✅ Знайдено: ${data.length}`);
+            allProducts = allProducts.concat(data);
+
+            if (await scraper.hasNextPage()) {
+                await scraper.goToNextPage();
+            } else {
+                break;
+            }
+        }
+
+        console.log(`📊 Разом зібрано: ${allProducts.length} товарів.`);
+        
+        // Зберігаємо у файл
+        if (allProducts.length > 0) {
+            FileHandler.saveToCSV(allProducts, 'ebay_structural_results.csv');
+        }
+
+        console.log("✅ Готово!");
+        await browser.disconnect();
+
+    } catch (err) {
+        console.error("❌ Помилка:", err);
+    }
+}
+
+main();
