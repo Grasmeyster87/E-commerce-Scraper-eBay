@@ -132,21 +132,21 @@ async function main() {
 
         const browser = await puppeteer.connect({
             browserURL: 'http://127.0.0.1:9222',
-            defaultViewport: null
+            defaultViewport: null,
         });
 
         const pages = await browser.pages();
         const page = pages.length > 0 ? pages[0] : await browser.newPage();
-        
+
         const scraper = new EbayScraper(page);
         let allProducts = [];
 
-        console.log("🔍 Починаємо структурний пошук...");
+        console.log('🔍 Починаємо структурний пошук...');
         await scraper.search('notebook laptop');
 
-        for (let i = 1; i <= 2; i++) {
+        for (let i = 1; i <= 4; i++) {
             console.log(`📄 Сторінка ${i}...`);
-            
+
             // Зберігаємо дебаг-інфо
             const html = await page.content();
             const screenshot = await page.screenshot({ fullPage: false });
@@ -164,17 +164,17 @@ async function main() {
         }
 
         console.log(`📊 Разом зібрано: ${allProducts.length} товарів.`);
-        
+
         // Зберігаємо у файл
         if (allProducts.length > 0) {
             FileHandler.saveToCSV(allProducts, 'ebay_structural_results.csv');
         }
 
-        console.log("✅ Готово!");
-        await browser.disconnect();
-
+        console.log('✅ Готово!');
+        //await browser.disconnect();
+        await browser.close();
     } catch (err) {
-        console.error("❌ Помилка:", err);
+        console.error('❌ Помилка:', err);
     }
 }
 
