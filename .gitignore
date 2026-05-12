@@ -1,3 +1,27 @@
-node_modules
-data
-browser_profile
+# --- ОСНОВНЕ ---
+node_modules/
+.DS_Store
+Thumbs.db
+*.log
+
+# --- БЕКЕНД ---
+backend/node_modules/
+backend/.env
+backend/browser_profile/
+backend/data/debug/
+backend/data/*.csv
+backend/data/*.json
+
+# --- ФРОНТЕНД ---
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+frontend/.env
+frontend/.env.*.local
+
+# --- IDE (VS Code / JetBrains) ---
+.vscode/
+.idea/
+*.suo
+*.sln
