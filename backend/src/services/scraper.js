@@ -161,7 +161,7 @@ export class EbayScraper {
     }
 } */
 
-import { StructuralParser } from './parser.js'; 
+import { StructuralParser } from './parser.js';
 
 export class EbayScraper {
     constructor(page) {
@@ -171,20 +171,44 @@ export class EbayScraper {
 
     async search(query) {
         const url = `https://www.ebay.com/sch/i.html?_nkw=${encodeURIComponent(query)}`;
-        await this.page.goto(url, { waitUntil: 'networkidle2' });
+        console.log(`Навігація на: ${url}`);
+
+        // Чекаємо повного завантаження мережі
+        await this.page.goto(url, {
+            waitUntil: 'networkidle2',
+            timeout: 60000,
+        });
+
+        // Додатково чекаємо появи хоча б одного елемента результатів
+        // Це гарантує, що контекст не буде знищено під час пошуку списку
+        await this.page
+            .waitForSelector('.s-item__info, .s-item__wrapper', {
+                timeout: 15000,
+            })
+            .catch(() =>
+                console.log(
+                    'Попередження: Селектор товарів не знайдено вчасно.',
+                ),
+            );
     }
 
     async findProductList() {
         this.listSelector = await this.page.evaluate(() => {
-            const mainList = document.querySelector("ul.srp-results, .srp-list");
-            if (mainList) return "ul.srp-results";
+            const mainList = document.querySelector(
+                'ul.srp-results, .srp-list',
+            );
+            if (mainList) return 'ul.srp-results';
 
-            const containers = document.querySelectorAll("ul, div.srp-river-answer");
+            const containers = document.querySelectorAll(
+                'ul, div.srp-river-answer',
+            );
             for (const c of containers) {
-                const items = c.querySelectorAll(":scope > li, :scope > div.s-item__wrapper");
+                const items = c.querySelectorAll(
+                    ':scope > li, :scope > div.s-item__wrapper',
+                );
                 if (items.length > 10) {
-                    c.classList.add("__scraper_main_list");
-                    return ".__scraper_main_list";
+                    c.classList.add('__scraper_main_list');
+                    return '.__scraper_main_list';
                 }
             }
             return null;
@@ -198,7 +222,9 @@ export class EbayScraper {
 
         if (!this.listSelector) return [];
 
-        const productElements = await this.page.$$(`${this.listSelector} > li, ${this.listSelector} .s-item__wrapper`);
+        const productElements = await this.page.$$(
+            `${this.listSelector} > li, ${this.listSelector} .s-item__wrapper`,
+        );
         const results = [];
 
         for (const el of productElements) {
@@ -220,12 +246,16 @@ export class EbayScraper {
         if (nextButton) {
             const oldUrl = this.page.url();
             await nextButton.click();
-            
+
             try {
-                await this.page.waitForFunction((old) => window.location.href !== old, { timeout: 10000 }, oldUrl);
-                await new Promise(r => setTimeout(r, 2000));
+                await this.page.waitForFunction(
+                    (old) => window.location.href !== old,
+                    { timeout: 10000 },
+                    oldUrl,
+                );
+                await new Promise((r) => setTimeout(r, 2000));
             } catch (e) {
-                console.log("⚠️ Затримка при переході...");
+                console.log('⚠️ Затримка при переході...');
             }
         }
     }
