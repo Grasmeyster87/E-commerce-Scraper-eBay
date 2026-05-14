@@ -11,10 +11,11 @@ function App() {
 
         setLoading(true);
         try {
-            const response = await axios.post(
-                'http://localhost:5001/api/scrape',
-                { query },
-            );
+            const backendUrl =
+                import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
+            const response = await axios.post(`${backendUrl}/api/scrape`, {
+                query,
+            });
             setResults(response.data.data);
         } catch (error) {
             const serverError = error.response?.data?.error || error.message;

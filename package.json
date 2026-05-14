@@ -1,0 +1,14 @@
+{
+  "name": "e-commerce-scraper-ebay",
+  "version": "1.0.0",
+  "description": "A professional full-stack tool for automated data collection from eBay, combining the power of Puppeteer on the backend and a modern React interface.",
+  "main": "folder_reder.js",  
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node start.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module"
+}
