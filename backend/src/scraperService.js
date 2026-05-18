@@ -31,7 +31,7 @@ export async function runEbayScraper(searchQuery) {
         if (browser) await browser.close();
     }
 }*/
-
+/*
 import { exec } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -95,6 +95,92 @@ export async function runEbayScraper(searchQuery) {
         if (browser) {
             console.log('🛑 Закриваємо сесію браузера та звільняємо профіль...');
             await browser.close();
+        }
+    }
+}*/
+
+import { exec } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import puppeteer from 'puppeteer-extra';
+import { EbayScraper } from './services/scraper.js'; // переконайся, що шлях правильний
+
+// Допоміжна функція для затримки
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export async function runEbayScraper(searchQuery) {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const scriptPath = path.join(__dirname, 'launch_chrome.bat');
+
+    let browser = null;
+
+    try {
+        // 1. КРОК: Перевіряємо, чи Chrome вже відкритий і слухає порт 9222
+        console.log('🔍 Перевірка наявності активної сесії Chrome...');
+        browser = await puppeteer.connect({
+            browserURL: 'http://127.0.0.1:9222',
+            defaultViewport: null
+        }).catch(() => null); // Якщо не запущений — поверне null замість падіння
+
+        // 2. КРОК: Якщо Хром НЕ запущений, запускаємо його через bat-скрипт
+        if (!browser) {
+            console.log('🌐 Chrome не знайдено на порту 9222. Запускаємо новий екземпляр...');
+            exec(`"${scriptPath}"`, (err) => {
+                if (err) console.error('❌ Не вдалося запустити Chrome через скрипт:', err.message);
+            });
+
+            // 3. КРОК: Динамічний цикл очікування порту (до 7 спроб із кроком в 1 сек)
+            for (let attempt = 1; attempt <= 7; attempt++) {
+                try {
+                    await delay(1000); // Чекаємо секунду перед кожною спробою
+                    browser = await puppeteer.connect({
+                        browserURL: 'http://127.0.0.1:9222',
+                        defaultViewport: null
+                    });
+                    console.log(`✅ Успішно підключено до Chrome на спробі №${attempt}`);
+                    break; // Підключилися — виходимо з циклу спроб
+                } catch (connectError) {
+                    if (attempt === 7) {
+                        throw new Error('Chrome запускається занадто довго. Збільште ліміт спроб або перевірте launch_chrome.bat');
+                    }
+                    console.log(`⏳ Очікування ініціалізації порту 9222 (спроба ${attempt}/7)...`);
+                }
+            }
+        } else {
+            console.log('🔄 Знайдено вже запущений Chrome. Перевикористовуємо поточне вікно.');
+        }
+
+        // --- ТВОЯ ЗБЕРЕЖЕНА ЛОГІКА (БЕЗ ЗМІН) ---
+        const pages = await browser.pages();
+        const page = pages[0];
+        const scraper = new EbayScraper(page);
+
+        await scraper.search(searchQuery);
+        
+        // Очікування стабілізації сторінки
+        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {});
+        
+        const data = await scraper.scrapePage();
+        return data;
+        // --- КІНЕЦЬ ТВОЄЇ ЛОГІКИ ---
+
+    } catch (error) {
+        console.error('❌ Помилка в логіці скрапера:', error.message);
+        throw error;
+    } finally {
+        // КРИТИЧНО ДЛЯ КЕРУВАННЯ ВІКНАМИ:
+        // Якщо ти хочеш, щоб після кожного пошуку Хром закривався повністю:
+        // if (browser) await browser.close();
+        
+        // Якщо ти хочеш, щоб вікно залишалося відкритим для повторних швидких пошуків:
+        if (browser) {
+            await browser.disconnect().catch(() => {});
+            console.log('🛑 Сесію Puppeteer відключено. Вікно Chrome збережено для наступних запитів.');
+            /*
+            await browser.close().catch(() => {}); 
+        console.log('🛑 Браузер повністю закрито.');
+            */
         }
     }
 }
