@@ -659,7 +659,7 @@ export class EbayScraper {
         }
     }
 
-    async scrapePage() {
+    /*async scrapePage() {
         this.listSelector = null;
         await this.findProductList();
 
@@ -680,7 +680,35 @@ export class EbayScraper {
             }
         }
         return results;
+    }*/
+
+        async scrapePage() {
+    this.listSelector = null;
+    await this.findProductList();
+
+    if (!this.listSelector) {
+        console.error('❌ Скрапінг скасовано: не знайдено валідного контейнера для товарів.');
+        return [];
     }
+
+    const productElements = await this.page.$$(
+        `${this.listSelector} > li, ${this.listSelector} .s-item__wrapper`
+    );
+    const results = [];
+
+    for (const el of productElements) {
+        const data = await StructuralParser.parseProduct(el);
+        // Перевіряємо наявність ліній контенту
+        if (data && data.lines && data.lines.length > 0) {
+            // Фільтруємо сміттєві блоки "Shop on eBay", якщо цей текст зустрівся в рядках
+            const isGarbage = data.lines.some(line => line.text.includes('Shop on eBay'));
+            if (!isGarbage) {
+                results.push(data);
+            }
+        }
+    }
+    return results;
+}
 
     async hasNextPage() {
         return (await this.page.$('a.pagination__next')) !== null;
