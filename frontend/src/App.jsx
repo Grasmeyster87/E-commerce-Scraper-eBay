@@ -134,7 +134,7 @@ function App() {
                                         >
                                             {/* Номер по порядку */}
                                             <span className="text-xs font-mono bg-slate-800 px-1.5 py-0.5 rounded text-cyan-500 w-7 text-center shrink-0">
-                                                #{line.index}
+                                                {line.index}
                                             </span>
                                             
                                             {/* Наш BOOL чекбокс */}
