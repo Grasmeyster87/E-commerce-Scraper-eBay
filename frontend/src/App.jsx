@@ -1,21 +1,43 @@
-import { useState } from 'react';
-import axios from 'axios'; // Виправлено імпорт бібліотеки axios
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 
 function App() {
-    const [query, setQuery] = useState('');
+    // Відновлюємо запит та результати з localStorage при завантаженні
+    const [query, setQuery] = useState(() => localStorage.getItem('savedQuery') || '');
+    const [results, setResults] = useState(() => {
+        const saved = localStorage.getItem('savedResults');
+        return saved ? JSON.parse(saved) : [];
+    });
     const [loading, setLoading] = useState(false);
-    const [results, setResults] = useState([]);
+
+    // Автоматично зберігаємо дані в localStorage при будь-якій їх зміні
+    useEffect(() => {
+        localStorage.setItem('savedResults', JSON.stringify(results));
+    }, [results]);
+
+    useEffect(() => {
+        localStorage.setItem('savedQuery', query);
+    }, [query]);
 
     const handleScrape = async () => {
         if (!query) return alert('Будь ласка, введіть запит для пошуку');
         setLoading(true);
         try {
-            const backendUrl =
-                import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
-            const response = await axios.post(`${backendUrl}/api/scrape`, {
-                query,
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
+            const response = await axios.post(`${backendUrl}/api/scrape`, { query });
+            
+            // ОБРОБКА ДАНИХ: Рахуємо максимальну глибину (з гарантією що це число)
+            const processedData = response.data.data.map(card => {
+                const maxDepth = card.lines.reduce((max, line) => Math.max(max, parseInt(line.depth || 0, 10)), 0);
+                return {
+                    ...card,
+                    maxDepth: maxDepth,
+                    currentDepth: maxDepth, // За замовчуванням виводимо всі рівні
+                    uniqueness: true // Унікальність включена за замовчуванням
+                };
             });
-            setResults(response.data.data);
+            
+            setResults(processedData);
         } catch (error) {
             const serverError = error.response?.data?.error || error.message;
             console.error('Помилка:', serverError);
@@ -25,32 +47,51 @@ function App() {
         }
     };
 
-    // Перемикач для головного чекбоксу картки (Зберігати)
+    // Перемикач для головного чекбоксу картки
     const toggleCardCheck = (cardId) => {
         setResults((prev) =>
             prev.map((card) =>
-                card.id === cardId
-                    ? { ...card, cardChecked: !card.cardChecked }
-                    : card,
+                card.id === cardId ? { ...card, cardChecked: !card.cardChecked } : card,
             ),
         );
     };
 
-    // Перемикач для режиму глобальної синхронізації тегів (Унікальність)
+    // Перемикач для режиму Унікальності
     const toggleUniquenessCheck = (cardId) => {
         setResults((prev) =>
             prev.map((card) =>
-                card.id === cardId
-                    ? { ...card, uniqueness: !(card.uniqueness ?? true) }
-                    : card,
+                card.id === cardId ? { ...card, uniqueness: !card.uniqueness } : card,
             ),
         );
     };
 
-    // Перемикач для конкретного рядка з каскадом та крос-картковою синхронізацією
+    // Обробник зміни лічильника глибини
+    const handleDepthChange = (cardId, newValue) => {
+        setResults((prev) => {
+            const originCard = prev.find((c) => c.id === cardId);
+            if (!originCard) return prev;
+
+            let parsedValue = parseInt(newValue, 10);
+            if (isNaN(parsedValue)) parsedValue = originCard.maxDepth;
+            if (parsedValue < 0) parsedValue = 0;
+            if (parsedValue > originCard.maxDepth) parsedValue = originCard.maxDepth;
+
+            const isUniqueSync = originCard.uniqueness !== false;
+
+            return prev.map((card) => {
+                // Синхронізуємо лічильники для всіх карток (якщо включена унікальність)
+                if (isUniqueSync || card.id === cardId) {
+                    const safeValue = Math.min(parsedValue, card.maxDepth);
+                    return { ...card, currentDepth: safeValue };
+                }
+                return card;
+            });
+        });
+    };
+
+    // Перемикач для конкретного рядка (каскад + крос-картка)
     const toggleLineCheck = (cardId, lineIndex) => {
         setResults((prev) => {
-            // 1. Шукаємо оригінальну картку та рядок, на який клікнули
             const originCard = prev.find((c) => c.id === cardId);
             if (!originCard) return prev;
 
@@ -59,17 +100,14 @@ function App() {
 
             const nextCheckedState = !targetLine.checked;
             const targetText = targetLine.text;
-            const isUniqueSync = originCard.uniqueness !== false; // true за замовчуванням
+            const isUniqueSync = originCard.uniqueness !== false;
 
-            // 2. Оновлюємо стан у всіх картках
             return prev.map((card) => {
-                // Якщо унікальність вимкнена і це не поточна картка — ігноруємо її
                 if (card.id !== cardId && !isUniqueSync) return card;
 
                 const newLines = card.lines.map((line) => ({ ...line }));
 
                 if (card.id === cardId) {
-                    // А) Логіка для поточної картки (орієнтуємось суворо на унікальний індекс)
                     const targetIdx = newLines.findIndex((l) => l.index === lineIndex);
                     if (targetIdx !== -1) {
                         newLines[targetIdx].checked = nextCheckedState;
@@ -84,13 +122,11 @@ function App() {
                         }
                     }
                 } else {
-                    // Б) Логіка крос-карткової синхронізації (шукаємо збіги за текстом тегу)
                     for (let i = 0; i < newLines.length; i++) {
                         if (newLines[i].text === targetText) {
                             newLines[i].checked = nextCheckedState;
                             const parentDepth = newLines[i].depth;
 
-                            // Синхронно перемикаємо всіх нащадків знайденого тегу на іншій картці
                             let j = i + 1;
                             while (j < newLines.length && newLines[j].depth > parentDepth) {
                                 newLines[j].checked = nextCheckedState;
@@ -105,32 +141,48 @@ function App() {
         });
     };
 
+    // Очищення результатів вручну
+    const handleClear = () => {
+        if(window.confirm('Ви дійсно хочете очистити всі дані?')) {
+            setResults([]);
+            setQuery('');
+            localStorage.removeItem('savedResults');
+            localStorage.removeItem('savedQuery');
+        }
+    };
+
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 md:p-8 font-sans selection:bg-cyan-500 selection:text-slate-900">
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* Шапка та Пошукова панель */}
                 <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl shadow-2xl space-y-4">
-                    {/* Змінено на bg-linear-to-r відповідно до правил v4 */}
-                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-linear-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
-                        eBay Structural Skeleton Scraper
-                    </h1>
+                    <div className="flex justify-between items-center">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-linear-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
+                            eBay Structural Skeleton
+                        </h1>
+                        {results.length > 0 && (
+                            <button onClick={handleClear} className="text-xs text-red-400 hover:text-red-300 border border-red-900/50 hover:bg-red-900/20 px-3 py-1.5 rounded-lg transition-colors">
+                                Очистити дані
+                            </button>
+                        )}
+                    </div>
+                    
                     <div className="flex flex-col sm:flex-row gap-3">
                         <input
                             type="text"
                             className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500/50 transition-colors text-slate-200 placeholder-slate-600 font-medium"
-                            placeholder="Введіть товар для аналізу структури (наприклад: MacBook Pro)..."
+                            placeholder="Введіть товар для аналізу (наприклад: MacBook Pro)..."
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleScrape()}
                             disabled={loading}
                         />
-                        {/* Змінено на bg-linear-to-r відповідно до правил v4 */}
                         <button
                             onClick={handleScrape}
                             disabled={loading}
                             className="bg-linear-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-bold px-6 py-3 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/10 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none shrink-0"
                         >
-                            {loading ? 'Аналіз структури...' : 'Сканувати'}
+                            {loading ? 'Сканування...' : 'Сканувати'}
                         </button>
                     </div>
                 </div>
@@ -141,13 +193,11 @@ function App() {
                         <div
                             key={card.id}
                             className={`bg-slate-900/60 backdrop-blur border p-5 rounded-2xl shadow-xl flex flex-col gap-4 transition-all duration-300 ${
-                                card.cardChecked
-                                    ? 'border-slate-800 opacity-100'
-                                    : 'border-slate-900/40 opacity-40'
+                                card.cardChecked ? 'border-slate-800 opacity-100' : 'border-slate-900/40 opacity-40'
                             }`}
                         >
-                            {/* БЛОК 1: КЕРУВАННЯ (Зберігати та Унікальність) */}
-                            <div className="flex items-center gap-6 bg-slate-950/60 border border-slate-800/60 p-3 px-4 rounded-xl shrink-0">
+                            {/* БЛОК 1: КЕРУВАННЯ */}
+                            <div className="flex flex-wrap items-center gap-4 sm:gap-6 bg-slate-950/60 border border-slate-800/60 p-3 px-4 rounded-xl shrink-0">
                                 <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-200 cursor-pointer select-none">
                                     <input
                                         type="checkbox"
@@ -158,64 +208,85 @@ function App() {
                                     <span>Зберігати</span>
                                 </label>
 
-                                <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-200 cursor-pointer select-none border-l border-slate-800 pl-6">
+                                <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-200 cursor-pointer select-none border-l border-slate-800 pl-4 sm:pl-6">
                                     <input
                                         type="checkbox"
                                         className="w-4 h-4 accent-indigo-500 rounded cursor-pointer transition-transform active:scale-95"
-                                        checked={card.uniqueness ?? true}
+                                        checked={card.uniqueness !== false}
                                         onChange={() => toggleUniquenessCheck(card.id)}
                                     />
                                     <span>Унікальність</span>
                                 </label>
+
+                                <div className="flex items-center gap-2 border-l border-slate-800 pl-4 sm:pl-6">
+                                    <label htmlFor={`counter-${card.id}`} className="text-xs sm:text-sm font-semibold text-slate-200 select-none">
+                                        Глибина:
+                                    </label>
+                                    <div className="relative flex items-center bg-slate-900 border border-slate-700 rounded-lg overflow-hidden focus-within:border-cyan-500 transition-colors">
+                                        <input
+                                            type="number"
+                                            id={`counter-${card.id}`}
+                                            min="0"
+                                            max={card.maxDepth}
+                                            step="1"
+                                            value={card.currentDepth}
+                                            onChange={(e) => handleDepthChange(card.id, e.target.value)}
+                                            className="w-14 sm:w-16 bg-transparent text-center text-sm font-mono text-cyan-400 py-1 px-1 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                        />
+                                        <div className="flex flex-col border-l border-slate-700">
+                                            {/* Додано type="button" щоб уникнути конфліктів у браузерах */}
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleDepthChange(card.id, card.currentDepth + 1)}
+                                                className="px-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] leading-none py-0.5 border-b border-slate-700"
+                                            >
+                                                ▲
+                                            </button>
+                                            <button 
+                                                type="button"
+                                                onClick={() => handleDepthChange(card.id, card.currentDepth - 1)}
+                                                className="px-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] leading-none py-0.5"
+                                            >
+                                                ▼
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <span className="text-xs font-mono text-slate-500 select-none">
+                                        / {card.maxDepth}
+                                    </span>
+                                </div>
                             </div>
 
-                            {/* БЛОК 2: ОСНОВНИЙ КОНТЕНТ (Фото + Текст/Дерево) */}
+                            {/* БЛОК 2: ОСНОВНИЙ КОНТЕНТ */}
                             <div className="flex flex-col md:flex-row gap-5">
-                                {/* Фотографія товару */}
+                                {/* Фото */}
                                 {card.img && (
                                     <div className="w-full md:w-44 h-44 shrink-0 bg-slate-950/80 rounded-xl overflow-hidden border border-slate-800/80 flex items-center justify-center p-2 relative group">
-                                        <img
-                                            src={card.img}
-                                            alt="Product Blueprint"
-                                            className="object-contain max-w-full max-h-full transition-transform duration-300 group-hover:scale-105"
-                                        />
-                                        <a
-                                            href={card.url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold text-cyan-400 backdrop-blur-[2px]"
-                                        >
-                                            Відкрити оригінал ↗
-                                        </a>
+                                        <img src={card.img} alt="Product" className="object-contain max-w-full max-h-full transition-transform duration-300 group-hover:scale-105" />
                                     </div>
                                 )}
 
-                                {/* Дерево тегів та вмісту */}
-                                {/* Змінено max-h-[350px] на канонічний макрос max-h-87.5 */}
+                                {/* Дерево */}
                                 <div className="flex-1 bg-slate-950/40 rounded-xl p-3 border border-slate-800/40 space-y-1 select-none max-h-87.5 overflow-y-auto custom-scrollbar">
-                                    {card.lines.map((line) => (
-                                        <div
-                                            key={line.index}
-                                            className={`flex items-stretch gap-1 rounded hover:bg-slate-900/40 pr-2 transition-colors ${
-                                                line.checked
-                                                    ? 'opacity-100'
-                                                    : 'opacity-30'
-                                            }`}
-                                        >
-                                            {/* Індекс рядка */}
+                                    {card.lines
+                                        .filter((line) => {
+                                            // БРОНЕБІЙНА ПЕРЕВІРКА: 
+                                            // Якщо це чистий контент (не починається з <) -> завжди залишаємо.
+                                            // Якщо це тег -> показуємо тільки якщо його глибина <= currentDepth
+                                            const isHtmlTag = line.isStructure === true || (typeof line.text === 'string' && line.text.trim().startsWith('<'));
+                                            return !isHtmlTag || parseInt(line.depth, 10) <= card.currentDepth;
+                                        })
+                                        .map((line) => (
+                                        <div key={line.index} className={`flex items-stretch gap-1 rounded hover:bg-slate-900/40 pr-2 transition-colors ${line.checked ? 'opacity-100' : 'opacity-30'}`}>
                                             <div className="flex items-center shrink-0 w-8">
                                                 <span className="text-[10px] font-mono bg-slate-900 px-1.5 py-0.5 rounded text-cyan-500/80 w-full text-center border border-slate-800/50">
                                                     {line.index}
                                                 </span>
                                             </div>
 
-                                            {/* Вертикальна CSS структура дерева */}
                                             <div className="flex shrink-0 items-stretch ml-1">
                                                 {Array.from({ length: line.depth }).map((_, i) => (
-                                                    <div
-                                                        key={i}
-                                                        className="w-4 border-l border-slate-800/70 h-full shrink-0"
-                                                    />
+                                                    <div key={i} className="w-4 border-l border-slate-800/70 h-full shrink-0" />
                                                 ))}
                                                 <div className="w-4 h-full relative shrink-0">
                                                     <div className="absolute left-0 top-0 bottom-0 border-l border-slate-800/70" />
@@ -225,28 +296,16 @@ function App() {
                                                 </div>
                                             </div>
 
-                                            {/* Чекбокс елемента структури */}
                                             <div className="flex items-center shrink-0 pl-1 mr-2">
-                                                <input
-                                                    type="checkbox"
-                                                    className="w-3.5 h-3.5 accent-emerald-500 shrink-0 cursor-pointer rounded"
-                                                    checked={line.checked}
-                                                    disabled={!card.cardChecked}
-                                                    onChange={() =>
-                                                        toggleLineCheck(card.id, line.index)
-                                                    }
-                                                />
+                                                <input type="checkbox" className="w-3.5 h-3.5 accent-emerald-500 shrink-0 cursor-pointer rounded" checked={line.checked} disabled={!card.cardChecked} onChange={() => toggleLineCheck(card.id, line.index)} />
                                             </div>
 
-                                            {/* Текст (Тег або Контент) */}
-                                            <div className="flex-1 py-1.5">
-                                                <span
-                                                    className={`tracking-wide break-all block leading-relaxed ${
-                                                        line.isStructure
-                                                            ? 'text-indigo-400 font-mono text-xs opacity-90'
-                                                            : 'text-slate-200 font-medium text-sm'
-                                                    }`}
-                                                >
+                                            <div className="flex-1 py-1.5 overflow-hidden">
+                                                <span className={`tracking-wide break-all block leading-relaxed ${
+                                                    (line.isStructure === true || (typeof line.text === 'string' && line.text.trim().startsWith('<')))
+                                                        ? 'text-indigo-400 font-mono text-xs opacity-90'
+                                                        : 'text-slate-200 font-bold text-sm'
+                                                }`}>
                                                     {line.text}
                                                 </span>
                                             </div>
@@ -256,12 +315,6 @@ function App() {
                             </div>
                         </div>
                     ))}
-
-                    {results.length === 0 && !loading && (
-                        <div className="text-center text-slate-500 py-20 bg-slate-900/20 rounded-3xl border border-dashed border-slate-800">
-                            ✨ Таблиця порожня. Введіть пошуковий запит, щоб отримати динамічні структури.
-                        </div>
-                    )}
                 </div>
             </div>
         </div>
