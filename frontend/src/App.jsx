@@ -153,32 +153,39 @@ function App() {
                                                 : 'border-slate-800 opacity-50 line-through'
                                         }`}
                                     >
-                                        {/* 1. Номер по порядку (фіксована ширина, щоб дерево не "стрибало") */}
+                                        {/* 1. Номер по порядку (залишається без змін) */}
                                         <div className="flex items-center shrink-0 w-8">
                                             <span className="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded text-cyan-500 w-full text-center">
                                                 {line.index}
                                             </span>
                                         </div>
 
-                                        {/* 2. ГЕНЕРАЦІЯ ВЕРТИКАЛЬНИХ ЛІНІЙ РІВНІВ */}
-                                        <div className="flex shrink-0">
+                                        {/* 2. СТРУКТУРА ДЕРЕВА (Повністю на CSS — лінії та кінцева гілка об'єднані) */}
+                                        <div className="flex shrink-0 items-stretch ml-1">
+                                            {/* Малюємо вертикальні лінії для попередніх рівнів глибини */}
                                             {Array.from({
                                                 length: line.depth,
                                             }).map((_, i) => (
                                                 <div
                                                     key={i}
-                                                    className="w-4 border-l border-slate-800/80 h-full"
-                                                    // w-4 задає ширину одного кроку відступу
+                                                    className="w-4 border-l border-slate-800/60 h-full shrink-0"
                                                 />
                                             ))}
+
+                                            {/* Кінцева гілка поточного рядка */}
+                                            <div className="w-4 h-full relative shrink-0">
+                                                {/* Головна вертикальна вісь гілки */}
+                                                <div className="absolute left-0 top-0 bottom-0 border-l border-slate-800/60" />
+
+                                                {/* Горизонтальний відвід (малюється замість "─", якщо елемент вкладений) */}
+                                                {line.depth > 0 && (
+                                                    <div className="absolute left-0 top-1/2 w-2 border-t border-slate-800/60" />
+                                                )}
+                                            </div>
                                         </div>
 
-                                        {/* 3. Гілка (branch symbol) та Чекбокс */}
-                                        <div className="flex items-center gap-2 shrink-0">
-                                            <span className="text-slate-700 font-mono text-xs select-none opacity-60">
-                                                {line.depth === 0 ? '│' : '├─'}
-                                            </span>
-
+                                        {/* 3. Чекбокс (відокремлений невеликим відступом від CSS-гілки) */}
+                                        <div className="flex items-center shrink-0 pl-1 mr-2">
                                             <input
                                                 type="checkbox"
                                                 className="w-3 h-3 accent-emerald-500 cursor-pointer"
