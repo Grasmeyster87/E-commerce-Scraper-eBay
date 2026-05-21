@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import axios from 'axios';
+import { useState } from 'react';
+import axios from 'axios'; // Виправлено імпорт бібліотеки axios
 
 function App() {
     const [query, setQuery] = useState('');
@@ -25,7 +25,7 @@ function App() {
         }
     };
 
-    // Перемикач для головного чекбоксу картки
+    // Перемикач для головного чекбоксу картки (Зберігати)
     const toggleCardCheck = (cardId) => {
         setResults((prev) =>
             prev.map((card) =>
@@ -36,192 +36,230 @@ function App() {
         );
     };
 
-    // Перемикач для конкретного рядка всередині картки
-    const toggleLineCheck = (cardId, lineIndex) => {
+    // Перемикач для режиму глобальної синхронізації тегів (Унікальність)
+    const toggleUniquenessCheck = (cardId) => {
         setResults((prev) =>
-            prev.map((card) => {
-                if (card.id !== cardId) return card;
-                return {
-                    ...card,
-                    lines: card.lines.map((line) =>
-                        line.index === lineIndex
-                            ? { ...line, checked: !line.checked }
-                            : line,
-                    ),
-                };
-            }),
+            prev.map((card) =>
+                card.id === cardId
+                    ? { ...card, uniqueness: !(card.uniqueness ?? true) }
+                    : card,
+            ),
         );
     };
 
-    return (
-        <div className="min-h-screen bg-slate-900 text-slate-100 p-8">
-            <div className="max-w-5xl mx-auto">
-                <h1 className="text-3xl font-bold text-cyan-400 mb-8 text-center tracking-wide">
-                    🛒 eBay Agnostic Scraper Pro
-                </h1>
+    // Перемикач для конкретного рядка з каскадом та крос-картковою синхронізацією
+    const toggleLineCheck = (cardId, lineIndex) => {
+        setResults((prev) => {
+            // 1. Шукаємо оригінальну картку та рядок, на який клікнули
+            const originCard = prev.find((c) => c.id === cardId);
+            if (!originCard) return prev;
 
-                {/* Панель пошуку */}
-                <div className="flex gap-4 mb-10 bg-slate-800 p-4 rounded-xl border border-slate-700 shadow-lg">
-                    <input
-                        type="text"
-                        className="flex-1 bg-slate-950 border border-slate-600 rounded-lg px-4 py-2 text-slate-200 focus:outline-none focus:border-cyan-400 text-lg"
-                        placeholder="Введіть товар (наприклад: laptops, iphone)..."
-                        value={query}
-                        onChange={(e) => setQuery(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleScrape()}
-                        disabled={loading}
-                    />
-                    <button
-                        className="bg-cyan-500 hover:bg-cyan-600 disabled:bg-slate-700 text-slate-950 font-bold px-6 py-2 rounded-lg transition-all text-lg cursor-pointer flex items-center"
-                        onClick={handleScrape}
-                        disabled={loading}
-                    >
-                        {loading ? '⚡ Скрапінг...' : '🚀 Запуск'}
-                    </button>
+            const targetLine = originCard.lines.find((l) => l.index === lineIndex);
+            if (!targetLine) return prev;
+
+            const nextCheckedState = !targetLine.checked;
+            const targetText = targetLine.text;
+            const isUniqueSync = originCard.uniqueness !== false; // true за замовчуванням
+
+            // 2. Оновлюємо стан у всіх картках
+            return prev.map((card) => {
+                // Якщо унікальність вимкнена і це не поточна картка — ігноруємо її
+                if (card.id !== cardId && !isUniqueSync) return card;
+
+                const newLines = card.lines.map((line) => ({ ...line }));
+
+                if (card.id === cardId) {
+                    // А) Логіка для поточної картки (орієнтуємось суворо на унікальний індекс)
+                    const targetIdx = newLines.findIndex((l) => l.index === lineIndex);
+                    if (targetIdx !== -1) {
+                        newLines[targetIdx].checked = nextCheckedState;
+                        const parentDepth = newLines[targetIdx].depth;
+                        
+                        for (let i = targetIdx + 1; i < newLines.length; i++) {
+                            if (newLines[i].depth > parentDepth) {
+                                newLines[i].checked = nextCheckedState;
+                            } else {
+                                break;
+                            }
+                        }
+                    }
+                } else {
+                    // Б) Логіка крос-карткової синхронізації (шукаємо збіги за текстом тегу)
+                    for (let i = 0; i < newLines.length; i++) {
+                        if (newLines[i].text === targetText) {
+                            newLines[i].checked = nextCheckedState;
+                            const parentDepth = newLines[i].depth;
+
+                            // Синхронно перемикаємо всіх нащадків знайденого тегу на іншій картці
+                            let j = i + 1;
+                            while (j < newLines.length && newLines[j].depth > parentDepth) {
+                                newLines[j].checked = nextCheckedState;
+                                j++;
+                            }
+                        }
+                    }
+                }
+
+                return { ...card, lines: newLines };
+            });
+        });
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 md:p-8 font-sans selection:bg-cyan-500 selection:text-slate-900">
+            <div className="max-w-7xl mx-auto space-y-8">
+                {/* Шапка та Пошукова панель */}
+                <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl shadow-2xl space-y-4">
+                    {/* Змінено на bg-linear-to-r відповідно до правил v4 */}
+                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-linear-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
+                        eBay Structural Skeleton Scraper
+                    </h1>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <input
+                            type="text"
+                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500/50 transition-colors text-slate-200 placeholder-slate-600 font-medium"
+                            placeholder="Введіть товар для аналізу структури (наприклад: MacBook Pro)..."
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleScrape()}
+                            disabled={loading}
+                        />
+                        {/* Змінено на bg-linear-to-r відповідно до правил v4 */}
+                        <button
+                            onClick={handleScrape}
+                            disabled={loading}
+                            className="bg-linear-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-bold px-6 py-3 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/10 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none shrink-0"
+                        >
+                            {loading ? 'Аналіз структури...' : 'Сканувати'}
+                        </button>
+                    </div>
                 </div>
 
-                {/* Сітка результатів */}
+                {/* Результати */}
                 <div className="grid grid-cols-1 gap-6">
                     {results.map((card) => (
                         <div
                             key={card.id}
-                            className={`flex flex-col md:flex-row gap-6 bg-slate-800 p-5 rounded-xl border transition-all shadow-md ${
+                            className={`bg-slate-900/60 backdrop-blur border p-5 rounded-2xl shadow-xl flex flex-col gap-4 transition-all duration-300 ${
                                 card.cardChecked
-                                    ? 'border-slate-700 opacity-100'
-                                    : 'border-red-950 opacity-50 bg-slate-900'
+                                    ? 'border-slate-800 opacity-100'
+                                    : 'border-slate-900/40 opacity-40'
                             }`}
                         >
-                            {/* ЛІВА ЧАСТИНА: Фото + Керування карткою */}
-                            <div className="flex flex-col items-center w-full md:w-48 shrink-0 bg-slate-950 p-3 rounded-lg border border-slate-700 justify-between">
-                                {card.img ? (
-                                    <img
-                                        src={card.img}
-                                        alt="Product"
-                                        className="w-full h-36 object-contain rounded mb-3"
+                            {/* БЛОК 1: КЕРУВАННЯ (Зберігати та Унікальність) */}
+                            <div className="flex items-center gap-6 bg-slate-950/60 border border-slate-800/60 p-3 px-4 rounded-xl shrink-0">
+                                <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-200 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4 accent-emerald-500 rounded cursor-pointer transition-transform active:scale-95"
+                                        checked={card.cardChecked}
+                                        onChange={() => toggleCardCheck(card.id)}
                                     />
-                                ) : (
-                                    <div className="w-full h-36 bg-slate-900 flex items-center justify-center text-slate-600 rounded mb-3 text-sm">
-                                        Немає фото
-                                    </div>
-                                )}
+                                    <span>Зберігати</span>
+                                </label>
 
-                                <div className="w-full border-t border-slate-800 pt-3 flex flex-col gap-2">
-                                    <label className="flex items-center justify-center gap-2 bg-slate-900 py-1.5 px-3 rounded border border-slate-700 cursor-pointer text-xs font-semibold hover:bg-slate-800 transition-all">
-                                        <input
-                                            type="checkbox"
-                                            className="w-4 h-4 accent-cyan-400 cursor-pointer"
-                                            checked={card.cardChecked}
-                                            onChange={() =>
-                                                toggleCardCheck(card.id)
-                                            }
+                                <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-200 cursor-pointer select-none border-l border-slate-800 pl-6">
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4 accent-indigo-500 rounded cursor-pointer transition-transform active:scale-95"
+                                        checked={card.uniqueness ?? true}
+                                        onChange={() => toggleUniquenessCheck(card.id)}
+                                    />
+                                    <span>Унікальність</span>
+                                </label>
+                            </div>
+
+                            {/* БЛОК 2: ОСНОВНИЙ КОНТЕНТ (Фото + Текст/Дерево) */}
+                            <div className="flex flex-col md:flex-row gap-5">
+                                {/* Фотографія товару */}
+                                {card.img && (
+                                    <div className="w-full md:w-44 h-44 shrink-0 bg-slate-950/80 rounded-xl overflow-hidden border border-slate-800/80 flex items-center justify-center p-2 relative group">
+                                        <img
+                                            src={card.img}
+                                            alt="Product Blueprint"
+                                            className="object-contain max-w-full max-h-full transition-transform duration-300 group-hover:scale-105"
                                         />
-                                        <span
-                                            className={
-                                                card.cardChecked
-                                                    ? 'text-cyan-400'
-                                                    : 'text-red-400'
-                                            }
-                                        >
-                                            {card.cardChecked
-                                                ? 'Включено'
-                                                : 'Унікальна'}
-                                        </span>
-                                    </label>
-
-                                    {card.url && (
                                         <a
                                             href={card.url}
                                             target="_blank"
-                                            rel="noreferrer"
-                                            className="text-center text-xs text-slate-400 hover:text-cyan-400 underline transition-all truncate"
+                                            rel="noopener noreferrer"
+                                            className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs font-bold text-cyan-400 backdrop-blur-[2px]"
                                         >
-                                            🔗 Перейти на eBay
+                                            Відкрити оригінал ↗
                                         </a>
-                                    )}
-                                </div>
-                            </div>
+                                    </div>
+                                )}
 
-                            {/* ПРАВА ЧАСТИНА: Стовпчик з ієрархічними рядками контенту */}
-                            {/* ПРАВА ЧАСТИНА: Стовпчик з ієрархічними рядками контенту */}
-                            <div className="flex flex-col gap-1.5 max-h-96 overflow-y-auto pr-2 custom-scrollbar">
-                                {card.lines.map((line) => (
-                                    <div
-                                        key={line.index}
-                                        className={`flex items-stretch gap-2 bg-slate-900/40 px-3 py-1 rounded border transition-all ${
-                                            line.checked
-                                                ? 'border-slate-700/50'
-                                                : 'border-slate-800 opacity-50 line-through'
-                                        }`}
-                                    >
-                                        {/* 1. Номер по порядку (залишається без змін) */}
-                                        <div className="flex items-center shrink-0 w-8">
-                                            <span className="text-[10px] font-mono bg-slate-800 px-1.5 py-0.5 rounded text-cyan-500 w-full text-center">
-                                                {line.index}
-                                            </span>
-                                        </div>
+                                {/* Дерево тегів та вмісту */}
+                                {/* Змінено max-h-[350px] на канонічний макрос max-h-87.5 */}
+                                <div className="flex-1 bg-slate-950/40 rounded-xl p-3 border border-slate-800/40 space-y-1 select-none max-h-87.5 overflow-y-auto custom-scrollbar">
+                                    {card.lines.map((line) => (
+                                        <div
+                                            key={line.index}
+                                            className={`flex items-stretch gap-1 rounded hover:bg-slate-900/40 pr-2 transition-colors ${
+                                                line.checked
+                                                    ? 'opacity-100'
+                                                    : 'opacity-30'
+                                            }`}
+                                        >
+                                            {/* Індекс рядка */}
+                                            <div className="flex items-center shrink-0 w-8">
+                                                <span className="text-[10px] font-mono bg-slate-900 px-1.5 py-0.5 rounded text-cyan-500/80 w-full text-center border border-slate-800/50">
+                                                    {line.index}
+                                                </span>
+                                            </div>
 
-                                        {/* 2. СТРУКТУРА ДЕРЕВА (Повністю на CSS — лінії та кінцева гілка об'єднані) */}
-                                        <div className="flex shrink-0 items-stretch ml-1">
-                                            {/* Малюємо вертикальні лінії для попередніх рівнів глибини */}
-                                            {Array.from({
-                                                length: line.depth,
-                                            }).map((_, i) => (
-                                                <div
-                                                    key={i}
-                                                    className="w-4 border-l border-slate-800/60 h-full shrink-0"
+                                            {/* Вертикальна CSS структура дерева */}
+                                            <div className="flex shrink-0 items-stretch ml-1">
+                                                {Array.from({ length: line.depth }).map((_, i) => (
+                                                    <div
+                                                        key={i}
+                                                        className="w-4 border-l border-slate-800/70 h-full shrink-0"
+                                                    />
+                                                ))}
+                                                <div className="w-4 h-full relative shrink-0">
+                                                    <div className="absolute left-0 top-0 bottom-0 border-l border-slate-800/70" />
+                                                    {line.depth > 0 && (
+                                                        <div className="absolute left-0 top-1/2 w-2 border-t border-slate-800/70" />
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Чекбокс елемента структури */}
+                                            <div className="flex items-center shrink-0 pl-1 mr-2">
+                                                <input
+                                                    type="checkbox"
+                                                    className="w-3.5 h-3.5 accent-emerald-500 shrink-0 cursor-pointer rounded"
+                                                    checked={line.checked}
+                                                    disabled={!card.cardChecked}
+                                                    onChange={() =>
+                                                        toggleLineCheck(card.id, line.index)
+                                                    }
                                                 />
-                                            ))}
+                                            </div>
 
-                                            {/* Кінцева гілка поточного рядка */}
-                                            <div className="w-4 h-full relative shrink-0">
-                                                {/* Головна вертикальна вісь гілки */}
-                                                <div className="absolute left-0 top-0 bottom-0 border-l border-slate-800/60" />
-
-                                                {/* Горизонтальний відвід (малюється замість "─", якщо елемент вкладений) */}
-                                                {line.depth > 0 && (
-                                                    <div className="absolute left-0 top-1/2 w-2 border-t border-slate-800/60" />
-                                                )}
+                                            {/* Текст (Тег або Контент) */}
+                                            <div className="flex-1 py-1.5">
+                                                <span
+                                                    className={`tracking-wide break-all block leading-relaxed ${
+                                                        line.isStructure
+                                                            ? 'text-indigo-400 font-mono text-xs opacity-90'
+                                                            : 'text-slate-200 font-medium text-sm'
+                                                    }`}
+                                                >
+                                                    {line.text}
+                                                </span>
                                             </div>
                                         </div>
-
-                                        {/* 3. Чекбокс (відокремлений невеликим відступом від CSS-гілки) */}
-                                        <div className="flex items-center shrink-0 pl-1 mr-2">
-                                            <input
-                                                type="checkbox"
-                                                className="w-3 h-3 accent-emerald-500 cursor-pointer"
-                                                checked={line.checked}
-                                                disabled={!card.cardChecked}
-                                                onChange={() =>
-                                                    toggleLineCheck(
-                                                        card.id,
-                                                        line.index,
-                                                    )
-                                                }
-                                            />
-                                        </div>
-
-                                        {/* 4. Текст (Структура або Контент) */}
-                                        <div className="flex-1 py-1.5">
-                                            <span
-                                                className={`tracking-wide break-all block leading-relaxed ${
-                                                    line.isStructure
-                                                        ? 'text-indigo-400 font-mono text-xs opacity-80'
-                                                        : 'text-slate-100 font-medium text-sm'
-                                                }`}
-                                            >
-                                                {line.text}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
+                                    ))}
+                                </div>
                             </div>
                         </div>
                     ))}
 
                     {results.length === 0 && !loading && (
-                        <div className="text-center text-slate-500 py-20 bg-slate-800/40 rounded-2xl border border-dashed border-slate-700">
-                            ✨ Таблиця пуста. Введіть пошуковий запит, щоб
-                            отримати динамічні структури.
+                        <div className="text-center text-slate-500 py-20 bg-slate-900/20 rounded-3xl border border-dashed border-slate-800">
+                            ✨ Таблиця порожня. Введіть пошуковий запит, щоб отримати динамічні структури.
                         </div>
                     )}
                 </div>
