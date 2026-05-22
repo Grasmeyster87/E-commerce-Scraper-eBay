@@ -1,8 +1,9 @@
+// src/App.jsx
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { CardService } from './services/CardService'; // Імпортуємо наш клас-сервіс
 
 function App() {
-    // Відновлюємо запит та результати з localStorage при завантаженні
     const [query, setQuery] = useState(() => localStorage.getItem('savedQuery') || '');
     const [results, setResults] = useState(() => {
         const saved = localStorage.getItem('savedResults');
@@ -10,7 +11,6 @@ function App() {
     });
     const [loading, setLoading] = useState(false);
 
-    // Автоматично зберігаємо дані в localStorage при будь-якій їх зміні
     useEffect(() => {
         localStorage.setItem('savedResults', JSON.stringify(results));
     }, [results]);
@@ -26,39 +26,9 @@ function App() {
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
             const response = await axios.post(`${backendUrl}/api/scrape`, { query });
             
-            // ОБРОБКА ДАНИХ: Рахуємо максимальну глибину та будуємо семантичні адреси
-            const processedData = response.data.data.map(card => {
-                const maxDepth = card.lines.reduce((max, line) => Math.max(max, parseInt(line.depth || 0, 10)), 0);
-                
-                // ДИНАМІЧНЕ ОБЧИСЛЕННЯ СЕМАНТИЧНОГО ШЛЯХУ (DOM PATH ADDRESS)
-                let currentPathTracker = [];
-                const linesWithPaths = card.lines.map(line => {
-                    const depth = parseInt(line.depth || 0, 10);
-                    const isHtmlTag = line.isStructure === true || (typeof line.text === 'string' && line.text.trim().startsWith('<'));
-                    
-                    if (isHtmlTag) {
-                        currentPathTracker[depth] = line.text.trim();
-                        currentPathTracker = currentPathTracker.slice(0, depth + 1);
-                        return { ...line, isHtmlTag, semanticPath: null };
-                    } else {
-                        const semanticPath = currentPathTracker.slice(0, depth).filter(Boolean).join(' > ');
-                        return { ...line, isHtmlTag, semanticPath };
-                    }
-                });
-
-                return {
-                    ...card,
-                    lines: linesWithPaths,
-                    maxDepth: maxDepth,
-                    currentDepth: maxDepth, 
-                    uniqueness: true, // Унікальність включена за замовчуванням
-                    showCleanText: false, // Режим прев'ю картки
-                    saveCardLink: true,   
-                    saveImgLink: true     
-                };
-            });
-            
-            setResults(processedData);
+            // Використовуємо сервіс для обробки сирих даних
+            const processed = CardService.processRawData(response.data.data);
+            setResults(processed);
         } catch (error) {
             const serverError = error.response?.data?.error || error.message;
             console.error('Помилка:', serverError);
@@ -68,128 +38,31 @@ function App() {
         }
     };
 
-    // Перемикач для головного чекбоксу картки
+    // Делегуємо всю роботу методам класу CardService
     const toggleCardCheck = (cardId) => {
-        setResults((prev) =>
-            prev.map((card) =>
-                card.id === cardId ? { ...card, cardChecked: !card.cardChecked } : card,
-            ),
-        );
+        setResults(prev => prev.map(c => c.id === cardId ? { ...c, cardChecked: !c.cardChecked } : c));
     };
 
-    // Перемикач для режиму Унікальності
     const toggleUniquenessCheck = (cardId) => {
-        setResults((prev) =>
-            prev.map((card) =>
-                card.id === cardId ? { ...card, uniqueness: !card.uniqueness } : card,
-            ),
-        );
+        setResults(prev => prev.map(c => c.id === cardId ? { ...c, uniqueness: !c.uniqueness } : c));
     };
 
-    // ОНОВЛЕНО: Перемикач режиму чистий текст / структура з урахуванням Унікальності
     const toggleCleanText = (cardId) => {
-        setResults((prev) => {
-            const originCard = prev.find((c) => c.id === cardId);
-            if (!originCard) return prev;
-
-            const nextState = !originCard.showCleanText;
-            const isUniqueSync = originCard.uniqueness !== false;
-
-            return prev.map((card) => {
-                // Якщо унікальність увімкнена — перемикаємо ВСІ картки, якщо вимкнена — тільки одну
-                if (isUniqueSync || card.id === cardId) {
-                    return { ...card, showCleanText: nextState };
-                }
-                return card;
-            });
-        });
+        setResults(prev => CardService.toggleCleanText(prev, cardId));
     };
 
-    // Перемикач індивідуальних чекбоксів для збереження лінків
     const toggleLinkSave = (cardId, field) => {
-        setResults((prev) =>
-            prev.map((card) =>
-                card.id === cardId ? { ...card, [field]: !card[field] } : card,
-            ),
-        );
+        setResults(prev => CardService.toggleLinkSave(prev, cardId, field));
     };
 
-    // Обробник зміни лічильника глибини
     const handleDepthChange = (cardId, newValue) => {
-        setResults((prev) => {
-            const originCard = prev.find((c) => c.id === cardId);
-            if (!originCard) return prev;
-
-            let parsedValue = parseInt(newValue, 10);
-            if (isNaN(parsedValue)) parsedValue = originCard.maxDepth;
-            if (parsedValue < 0) parsedValue = 0;
-            if (parsedValue > originCard.maxDepth) parsedValue = originCard.maxDepth;
-
-            const isUniqueSync = originCard.uniqueness !== false;
-
-            return prev.map((card) => {
-                if (isUniqueSync || card.id === cardId) {
-                    const safeValue = Math.min(parsedValue, card.maxDepth);
-                    return { ...card, currentDepth: safeValue };
-                }
-                return card;
-            });
-        });
+        setResults(prev => CardService.handleDepthChange(prev, cardId, newValue));
     };
 
-    // Перемикач для конкретного рядка (каскад + крос-картка)
     const toggleLineCheck = (cardId, lineIndex) => {
-        setResults((prev) => {
-            const originCard = prev.find((c) => c.id === cardId);
-            if (!originCard) return prev;
-
-            const targetLine = originCard.lines.find((l) => l.index === lineIndex);
-            if (!targetLine) return prev;
-
-            const nextCheckedState = !targetLine.checked;
-            const targetText = targetLine.text;
-            const isUniqueSync = originCard.uniqueness !== false;
-
-            return prev.map((card) => {
-                if (card.id !== cardId && !isUniqueSync) return card;
-
-                const newLines = card.lines.map((line) => ({ ...line }));
-
-                if (card.id === cardId) {
-                    const targetIdx = newLines.findIndex((l) => l.index === lineIndex);
-                    if (targetIdx !== -1) {
-                        newLines[targetIdx].checked = nextCheckedState;
-                        const parentDepth = newLines[targetIdx].depth;
-                        
-                        for (let i = targetIdx + 1; i < newLines.length; i++) {
-                            if (newLines[i].depth > parentDepth) {
-                                newLines[i].checked = nextCheckedState;
-                            } else {
-                                break;
-                            }
-                        }
-                    }
-                } else {
-                    for (let i = 0; i < newLines.length; i++) {
-                        if (newLines[i].text === targetText) {
-                            newLines[i].checked = nextCheckedState;
-                            const parentDepth = newLines[i].depth;
-
-                            let j = i + 1;
-                            while (j < newLines.length && newLines[j].depth > parentDepth) {
-                                newLines[j].checked = nextCheckedState;
-                                j++;
-                            }
-                        }
-                    }
-                }
-
-                return { ...card, lines: newLines };
-            });
-        });
+        setResults(prev => CardService.toggleLineCheck(prev, cardId, lineIndex));
     };
 
-    // Очищення результатів вручну
     const handleClear = () => {
         if(window.confirm('Ви дійсно хочете очистити всі дані?')) {
             setResults([]);
@@ -202,7 +75,7 @@ function App() {
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 md:p-8 font-sans selection:bg-cyan-500 selection:text-slate-900">
             <div className="max-w-7xl mx-auto space-y-8">
-                {/* Шапка та Пошукова панель */}
+                {/* Шапка та Пошук */}
                 <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl shadow-2xl space-y-4">
                     <div className="flex justify-between items-center">
                         <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-linear-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
@@ -235,7 +108,7 @@ function App() {
                     </div>
                 </div>
 
-                {/* Результати */}
+                {/* Список карток */}
                 <div className="grid grid-cols-1 gap-6">
                     {results.map((card) => (
                         <div
@@ -244,7 +117,7 @@ function App() {
                                 card.cardChecked ? 'border-slate-800 opacity-100' : 'border-slate-900/40 opacity-40'
                             }`}
                         >
-                            {/* БЛОК 1: КЕРУВАННЯ */}
+                            {/* Панель керування картки */}
                             <div className="flex flex-wrap items-center gap-4 sm:gap-6 bg-slate-950/60 border border-slate-800/60 p-3 px-4 rounded-xl shrink-0">
                                 <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-200 cursor-pointer select-none">
                                     <input
@@ -279,31 +152,16 @@ function App() {
                                             step="1"
                                             value={card.currentDepth}
                                             onChange={(e) => handleDepthChange(card.id, e.target.value)}
-                                            className="w-14 sm:w-16 bg-transparent text-center text-sm font-mono text-cyan-400 py-1 px-1 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                            className="w-14 sm:w-16 bg-transparent text-center text-sm font-mono text-cyan-400 py-1 px-1 focus:outline-none"
                                         />
                                         <div className="flex flex-col border-l border-slate-700">
-                                            <button 
-                                                type="button"
-                                                onClick={() => handleDepthChange(card.id, card.currentDepth + 1)}
-                                                className="px-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] leading-none py-0.5 border-b border-slate-700"
-                                            >
-                                                ▲
-                                            </button>
-                                            <button 
-                                                type="button"
-                                                onClick={() => handleDepthChange(card.id, card.currentDepth - 1)}
-                                                className="px-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] leading-none py-0.5"
-                                            >
-                                                ▼
-                                            </button>
+                                            <button type="button" onClick={() => handleDepthChange(card.id, card.currentDepth + 1)} className="px-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] leading-none py-0.5 border-b border-slate-700">▲</button>
+                                            <button type="button" onClick={() => handleDepthChange(card.id, card.currentDepth - 1)} className="px-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] leading-none py-0.5">▼</button>
                                         </div>
                                     </div>
-                                    <span className="text-xs font-mono text-slate-500 select-none">
-                                        / {card.maxDepth}
-                                    </span>
+                                    <span className="text-xs font-mono text-slate-500 select-none">/ {card.maxDepth}</span>
                                 </div>
 
-                                {/* КНОПКА: ПОКАЗАТИ КАРТКУ (Тепер слухається прапорця "Унікальність") */}
                                 <button
                                     type="button"
                                     onClick={() => toggleCleanText(card.id)}
@@ -317,105 +175,57 @@ function App() {
                                 </button>
                             </div>
 
-                            {/* БЛОК 2: ОСНОВНИЙ КОНТЕНТ */}
+                            {/* Контентна частина */}
                             <div className="flex flex-col md:flex-row gap-5">
-                                {/* Фото + Чекбокси збереження лінків */}
+                                {/* Фото і лінки */}
                                 <div className="flex flex-col w-full md:w-44 shrink-0 gap-3">
                                     {card.img && (
                                         <div className="w-full h-44 bg-slate-950/80 rounded-xl overflow-hidden border border-slate-800/80 flex items-center justify-center p-2 relative group">
                                             <img src={card.img} alt="Product" className="object-contain max-w-full max-h-full transition-transform duration-300 group-hover:scale-105" />
                                         </div>
                                     )}
-                                    
-                                    {/* Блок збереження посилань */}
                                     <div className="bg-slate-950/50 border border-slate-800/60 p-3 rounded-xl space-y-2 text-xs text-slate-400">
                                         <label className="flex items-center gap-2 cursor-pointer hover:text-slate-200 transition-colors select-none">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={card.saveCardLink !== false}
-                                                onChange={() => toggleLinkSave(card.id, 'saveCardLink')}
-                                                className="w-3.5 h-3.5 accent-cyan-500 rounded border-slate-700"
-                                            />
+                                            <input type="checkbox" checked={card.saveCardLink !== false} onChange={() => toggleLinkSave(card.id, 'saveCardLink')} className="w-3.5 h-3.5 accent-cyan-500 rounded border-slate-700" />
                                             <span className="truncate">link card: <a href={card.url || '#'} target="_blank" rel="noreferrer" className="text-cyan-400 underline hover:text-cyan-300 ml-1">Open</a></span>
                                         </label>
                                         <label className="flex items-center gap-2 cursor-pointer hover:text-slate-200 transition-colors select-none">
-                                            <input 
-                                                type="checkbox" 
-                                                checked={card.saveImgLink !== false}
-                                                onChange={() => toggleLinkSave(card.id, 'saveImgLink')}
-                                                className="w-3.5 h-3.5 accent-cyan-500 rounded border-slate-700"
-                                            />
+                                            <input type="checkbox" checked={card.saveImgLink !== false} onChange={() => toggleLinkSave(card.id, 'saveImgLink')} className="w-3.5 h-3.5 accent-cyan-500 rounded border-slate-700" />
                                             <span className="truncate">link img: <a href={card.img || '#'} target="_blank" rel="noreferrer" className="text-cyan-400 underline hover:text-cyan-300 ml-1">Open</a></span>
                                         </label>
                                     </div>
                                 </div>
 
-                                {/* Дерево або Чистий контент */}
+                                {/* Текстове дерево ліній */}
                                 <div className="flex-1 bg-slate-950/40 rounded-xl p-3 border border-slate-800/40 space-y-1 select-none max-h-100 overflow-y-auto custom-scrollbar">
                                     {card.lines
-                                        .filter((line) => {
-                                            const isHtmlTag = line.isHtmlTag;
-                                            if (card.showCleanText) {
-                                                return !isHtmlTag && parseInt(line.depth, 10) <= card.currentDepth;
-                                            }
-                                            return !isHtmlTag || parseInt(line.depth, 10) <= card.currentDepth;
-                                        })
+                                        .filter((line) => card.showCleanText ? (!line.isHtmlTag && parseInt(line.depth, 10) <= card.currentDepth) : (!line.isHtmlTag || parseInt(line.depth, 10) <= card.currentDepth))
                                         .map((line) => (
-                                        <div 
-                                            key={line.index} 
-                                            className={`flex items-stretch gap-1 rounded pr-2 transition-colors ${
-                                                card.showCleanText ? 'hover:bg-transparent py-0.5' : 'hover:bg-slate-900/40'
-                                            } ${line.checked ? 'opacity-100' : 'opacity-30'}`}
-                                        >
+                                        <div key={line.index} className={`flex items-stretch gap-1 rounded pr-2 transition-colors ${card.showCleanText ? 'hover:bg-transparent py-0.5' : 'hover:bg-slate-900/40'} ${line.checked ? 'opacity-100' : 'opacity-30'}`}>
                                             {!card.showCleanText ? (
                                                 <>
                                                     <div className="flex items-center shrink-0 w-8">
-                                                        <span className="text-[10px] font-mono bg-slate-900 px-1.5 py-0.5 rounded text-cyan-500/80 w-full text-center border border-slate-800/50">
-                                                            {line.index}
-                                                        </span>
+                                                        <span className="text-[10px] font-mono bg-slate-900 px-1.5 py-0.5 rounded text-cyan-500/80 w-full text-center border border-slate-800/50">{line.index}</span>
                                                     </div>
-
                                                     <div className="flex shrink-0 items-stretch ml-1">
-                                                        {Array.from({ length: line.depth }).map((_, i) => (
-                                                            <div key={i} className="w-4 border-l border-slate-800/70 h-full shrink-0" />
-                                                        ))}
+                                                        {Array.from({ length: line.depth }).map((_, i) => <div key={i} className="w-4 border-l border-slate-800/70 h-full shrink-0" />)}
                                                         <div className="w-4 h-full relative shrink-0">
                                                             <div className="absolute left-0 top-0 bottom-0 border-l border-slate-800/70" />
-                                                            {line.depth > 0 && (
-                                                                <div className="absolute left-0 top-1/2 w-2 border-t border-slate-800/70" />
-                                                            )}
+                                                            {line.depth > 0 && <div className="absolute left-0 top-1/2 w-2 border-t border-slate-800/70" />}
                                                         </div>
                                                     </div>
-
                                                     <div className="flex items-center shrink-0 pl-1 mr-2">
-                                                        <input 
-                                                            type="checkbox" 
-                                                            className="w-3.5 h-3.5 accent-emerald-500 shrink-0 cursor-pointer rounded" 
-                                                            checked={line.checked} 
-                                                            disabled={!card.cardChecked} 
-                                                            onChange={() => toggleLineCheck(card.id, line.index)} 
-                                                        />
+                                                        <input type="checkbox" className="w-3.5 h-3.5 accent-emerald-500 shrink-0 cursor-pointer rounded" checked={line.checked} disabled={!card.cardChecked} onChange={() => toggleLineCheck(card.id, line.index)} />
                                                     </div>
                                                 </>
                                             ) : (
-                                                <div className="flex items-center mr-2 text-cyan-500 font-bold text-sm select-none pl-2">
-                                                    •
-                                                </div>
+                                                <div className="flex items-center mr-2 text-cyan-500 font-bold text-sm select-none pl-2">•</div>
                                             )}
 
                                             <div className="flex-1 py-1.5 overflow-hidden">
-                                                <span className={`tracking-wide break-all block leading-relaxed ${
-                                                    line.isHtmlTag
-                                                        ? 'text-indigo-400 font-mono text-xs opacity-90'
-                                                        : 'text-slate-200 font-bold text-sm'
-                                                }`}>
-                                                    {line.text}
-                                                </span>
-                                                
+                                                <span className={`tracking-wide break-all block leading-relaxed ${line.isHtmlTag ? 'text-indigo-400 font-mono text-xs opacity-90' : 'text-slate-200 font-bold text-sm'}`}>{line.text}</span>
                                                 {!card.showCleanText && line.semanticPath && (
-                                                    <span className="block text-[10px] text-slate-500 font-mono truncate mt-0.5" title={line.semanticPath}>
-                                                        📍 {line.semanticPath}
-                                                    </span>
+                                                    <span className="block text-[10px] text-slate-500 font-mono truncate mt-0.5" title={line.semanticPath}>📍 {line.semanticPath}</span>
                                                 )}
                                             </div>
                                         </div>
