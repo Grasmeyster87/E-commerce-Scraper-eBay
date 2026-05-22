@@ -13,14 +13,21 @@ export class CardService {
                 const depth = parseInt(line.depth || 0, 10);
                 const isHtmlTag = line.isStructure === true || (typeof line.text === 'string' && line.text.trim().startsWith('<'));
                 
+                // ОБЧИСЛЮЄМО СЕМАНТИЧНИЙ ШЛЯХ ДЛЯ ВСІХ (включаючи самі HTML теги на основі їхніх батьків)
+                const semanticPath = currentPathTracker.slice(0, depth).filter(Boolean).join(' > ');
+
                 if (isHtmlTag) {
+                    // Оновлюємо трекер для поточного рівня глибини
                     currentPathTracker[depth] = line.text.trim();
                     currentPathTracker = currentPathTracker.slice(0, depth + 1);
-                    return { ...line, isHtmlTag, semanticPath: null };
-                } else {
-                    const semanticPath = currentPathTracker.slice(0, depth).filter(Boolean).join(' > ');
-                    return { ...line, isHtmlTag, semanticPath };
                 }
+
+                return { 
+                    ...line, 
+                    isHtmlTag, 
+                    // Якщо шлях порожній (корінь дерева), запишемо null, інакше — рядок шляху
+                    semanticPath: semanticPath || null 
+                };
             });
 
             return {
@@ -96,7 +103,7 @@ export class CardService {
     }
 
     /**
-     * Робота з чекбоксами рядків (каскадне виділення підтегів + кроскарткова синхронізація тексту)
+     * Робота з чекбоксами рядків (каскадне виділення підтегів + КНТЕКСТНА синхронізація)
      */
     static toggleLineCheck(results, cardId, lineIndex) {
         const originCard = results.find((c) => c.id === cardId);
@@ -107,14 +114,17 @@ export class CardService {
 
         const nextCheckedState = !targetLine.checked;
         const targetText = targetLine.text;
+        const targetPath = targetLine.semanticPath; // Запоминаємо шлях ініціатора кліку
         const isUniqueSync = originCard.uniqueness !== false;
 
         return results.map((card) => {
+            // Якщо картка чужа і унікальність вимкнена — нічого не міняємо в ній
             if (card.id !== cardId && !isUniqueSync) return card;
 
             const newLines = card.lines.map((line) => ({ ...line }));
 
             if (card.id === cardId) {
+                // Локальна логіка для поточної картки (тут працює звичайний каскад вниз)
                 const targetIdx = newLines.findIndex((l) => l.index === lineIndex);
                 if (targetIdx !== -1) {
                     newLines[targetIdx].checked = nextCheckedState;
@@ -129,11 +139,13 @@ export class CardService {
                     }
                 }
             } else {
+                // ВИПРАВЛЕНО: Крос-карткова синхронізація з урахуванням контенту ТА семантичного шляху
                 for (let i = 0; i < newLines.length; i++) {
-                    if (newLines[i].text === targetText) {
+                    if (newLines[i].text === targetText && newLines[i].semanticPath === targetPath) {
                         newLines[i].checked = nextCheckedState;
                         const parentDepth = newLines[i].depth;
 
+                        // Вимикаємо також всіх його нащадків на цій картці (каскад)
                         let j = i + 1;
                         while (j < newLines.length && newLines[j].depth > parentDepth) {
                             newLines[j].checked = nextCheckedState;

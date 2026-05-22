@@ -1,7 +1,7 @@
 // src/App.jsx
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-import { CardService } from './services/CardService'; // Імпортуємо наш клас-сервіс
+import { CardService } from './services/CardService';
 
 function App() {
     const [query, setQuery] = useState(() => localStorage.getItem('savedQuery') || '');
@@ -26,7 +26,6 @@ function App() {
             const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
             const response = await axios.post(`${backendUrl}/api/scrape`, { query });
             
-            // Використовуємо сервіс для обробки сирих даних
             const processed = CardService.processRawData(response.data.data);
             setResults(processed);
         } catch (error) {
@@ -38,7 +37,6 @@ function App() {
         }
     };
 
-    // Делегуємо всю роботу методам класу CardService
     const toggleCardCheck = (cardId) => {
         setResults(prev => prev.map(c => c.id === cardId ? { ...c, cardChecked: !c.cardChecked } : c));
     };
@@ -224,7 +222,8 @@ function App() {
 
                                             <div className="flex-1 py-1.5 overflow-hidden">
                                                 <span className={`tracking-wide break-all block leading-relaxed ${line.isHtmlTag ? 'text-indigo-400 font-mono text-xs opacity-90' : 'text-slate-200 font-bold text-sm'}`}>{line.text}</span>
-                                                {!card.showCleanText && line.semanticPath && (
+                                                {/* ОНОВЛЕНО: Значок локації рендеримо тільки для текстових полів, щоб HTML-структура лишалася візуально строгою */}
+                                                {!card.showCleanText && !line.isHtmlTag && line.semanticPath && (
                                                     <span className="block text-[10px] text-slate-500 font-mono truncate mt-0.5" title={line.semanticPath}>📍 {line.semanticPath}</span>
                                                 )}
                                             </div>
