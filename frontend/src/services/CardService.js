@@ -103,7 +103,7 @@ export class CardService {
     }
 
     /**
-     * Робота з чекбоксами рядків (каскадне виділення підтегів + КНТЕКСТНА синхронізація)
+     * Робота з чекбоксами рядків (каскадне виділення підтегів + КОНТЕКСТНА синхронізація)
      */
     static toggleLineCheck(results, cardId, lineIndex) {
         const originCard = results.find((c) => c.id === cardId);
@@ -114,17 +114,15 @@ export class CardService {
 
         const nextCheckedState = !targetLine.checked;
         const targetText = targetLine.text;
-        const targetPath = targetLine.semanticPath; // Запоминаємо шлях ініціатора кліку
+        const targetPath = targetLine.semanticPath; 
         const isUniqueSync = originCard.uniqueness !== false;
 
         return results.map((card) => {
-            // Якщо картка чужа і унікальність вимкнена — нічого не міняємо в ній
             if (card.id !== cardId && !isUniqueSync) return card;
 
             const newLines = card.lines.map((line) => ({ ...line }));
 
             if (card.id === cardId) {
-                // Локальна логіка для поточної картки (тут працює звичайний каскад вниз)
                 const targetIdx = newLines.findIndex((l) => l.index === lineIndex);
                 if (targetIdx !== -1) {
                     newLines[targetIdx].checked = nextCheckedState;
@@ -139,13 +137,11 @@ export class CardService {
                     }
                 }
             } else {
-                // ВИПРАВЛЕНО: Крос-карткова синхронізація з урахуванням контенту ТА семантичного шляху
                 for (let i = 0; i < newLines.length; i++) {
                     if (newLines[i].text === targetText && newLines[i].semanticPath === targetPath) {
                         newLines[i].checked = nextCheckedState;
                         const parentDepth = newLines[i].depth;
 
-                        // Вимикаємо також всіх його нащадків на цій картці (каскад)
                         let j = i + 1;
                         while (j < newLines.length && newLines[j].depth > parentDepth) {
                             newLines[j].checked = nextCheckedState;
@@ -156,6 +152,33 @@ export class CardService {
             }
 
             return { ...card, lines: newLines };
+        });
+    }
+
+    /**
+     * Видалення цілого стовпця з таблиці (зняття виділення з усіх ліній із цим шляхом)
+     */
+    static deleteColumn(results, path) {
+        return results.map(card => ({
+            ...card,
+            lines: card.lines.map(line => 
+                line.semanticPath === path ? { ...line, checked: false } : line
+            )
+        }));
+    }
+
+    /**
+     * Видалення конкретної клітинки в таблиці
+     */
+    static deleteCell(results, cardId, path) {
+        return results.map(card => {
+            if (card.id !== cardId) return card;
+            return {
+                ...card,
+                lines: card.lines.map(line => 
+                    line.semanticPath === path ? { ...line, checked: false } : line
+                )
+            };
         });
     }
 }
