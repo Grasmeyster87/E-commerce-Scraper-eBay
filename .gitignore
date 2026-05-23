@@ -11,6 +11,8 @@ backend/browser_profile/
 backend/data/debug/
 backend/data/*.csv
 backend/data/*.json
+backend/data/*.sqlite
+backend/data/
 
 # --- ФРОНТЕНД ---
 frontend/node_modules/

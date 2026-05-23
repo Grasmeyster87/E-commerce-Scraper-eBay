@@ -5,7 +5,6 @@ import { CardService } from './services/CardService';
 import DataTable from './components/DataTable';
 
 function App() {
-    // 1. Перевіряємо, чи ми знаходимося у вкладці "Таблиця"
     const [isTableRoute] = useState(() => new URLSearchParams(window.location.search).get('view') === 'table');
 
     const [query, setQuery] = useState(() => localStorage.getItem('savedQuery') || '');
@@ -14,6 +13,9 @@ function App() {
         return saved ? JSON.parse(saved) : [];
     });
     const [loading, setLoading] = useState(false);
+
+    // Стан для директорії збереження (за замовчуванням backend/data)
+    const [saveDir, setSaveDir] = useState(() => localStorage.getItem('saveDir') || 'backend/data');
 
     // Зберігання локального стану
     useEffect(() => {
@@ -24,12 +26,14 @@ function App() {
         localStorage.setItem('savedQuery', query);
     }, [query]);
 
-    // МАГІЯ: Синхронізація між різними вкладками браузера в реальному часі!
+    useEffect(() => {
+        localStorage.setItem('saveDir', saveDir);
+    }, [saveDir]);
+
     useEffect(() => {
         const handleStorageChange = (e) => {
-            if (e.key === 'savedResults' && e.newValue) {
-                setResults(JSON.parse(e.newValue));
-            }
+            if (e.key === 'savedResults' && e.newValue) setResults(JSON.parse(e.newValue));
+            if (e.key === 'saveDir' && e.newValue) setSaveDir(e.newValue);
         };
         window.addEventListener('storage', handleStorageChange);
         return () => window.removeEventListener('storage', handleStorageChange);
@@ -39,7 +43,8 @@ function App() {
         if (!query) return alert('Будь ласка, введіть запит для пошуку');
         setLoading(true);
         try {
-            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5001';
+            // Оновлено бекенд URL для відповідності server.js
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
             const response = await axios.post(`${backendUrl}/api/scrape`, { query });
             
             const processed = CardService.processRawData(response.data.data);
@@ -53,11 +58,38 @@ function App() {
         }
     };
 
-    // Функція відкриття таблиці в новій вкладці
     const openTableInNewTab = () => {
         const url = new URL(window.location.href);
         url.searchParams.set('view', 'table');
         window.open(url.toString(), '_blank');
+    };
+
+    const handleChangeDirectory = () => {
+        const newDir = window.prompt("Введіть шлях до директорії збереження (відносно кореня сервера або абсолютний шлях):", saveDir);
+        if (newDir !== null && newDir.trim() !== '') {
+            setSaveDir(newDir.trim());
+        }
+    };
+
+    const handleSaveData = async (format) => {
+        const tableData = CardService.extractTableData(results);
+        if (tableData.length === 0) return alert('Немає активних карток для збереження!');
+
+        try {
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
+            const response = await axios.post(`${backendUrl}/api/save`, {
+                format,
+                data: tableData,
+                directory: saveDir
+            });
+            
+            if (response.data.success) {
+                alert(`✅ Дані успішно збережено!\nШлях: ${response.data.filePath}`);
+            }
+        } catch (error) {
+            const errorMsg = error.response?.data?.error || error.message;
+            alert(`❌ Помилка збереження: ${errorMsg}`);
+        }
     };
 
     const toggleCardCheck = (cardId) => setResults(prev => prev.map(c => c.id === cardId ? { ...c, cardChecked: !c.cardChecked } : c));
@@ -76,12 +108,28 @@ function App() {
         }
     };
 
-    // РЕНДЕР ДЛЯ ВСТАВКИ "ТАБЛИЦЯ" (В окремій вкладці)
+    // РЕНДЕР ДЛЯ ВСТАВКИ "ТАБЛИЦЯ"
     if (isTableRoute) {
         return (
             <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 font-sans">
-                <div className="flex justify-between items-center mb-4 px-2">
-                    <h1 className="text-xl font-bold text-cyan-400">Зведена таблиця даних</h1>
+                <div className="flex justify-between items-center mb-4 px-2 flex-wrap gap-4">
+                    <div className="flex flex-wrap items-center gap-6">
+                        <h1 className="text-xl font-bold text-cyan-400">Зведена таблиця даних</h1>
+                        
+                        {/* КНОПКИ ЕКСПОРТУ В ШАПЦІ ТАБЛИЦІ */}
+                        <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 p-1.5 rounded-xl">
+                            <button onClick={() => handleSaveData('csv')} className="bg-emerald-500/10 text-emerald-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-emerald-900/50 hover:bg-emerald-500/20 transition-colors">CSV</button>
+                            <button onClick={() => handleSaveData('json')} className="bg-amber-500/10 text-amber-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-amber-900/50 hover:bg-amber-500/20 transition-colors">JSON</button>
+                            <button onClick={() => handleSaveData('sqlite')} className="bg-blue-500/10 text-blue-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-900/50 hover:bg-blue-500/20 transition-colors">SQLite3</button>
+                            
+                            <div className="flex items-center gap-2 ml-2 pl-3 border-l border-slate-800">
+                                <span className="text-[10px] text-slate-500 font-mono max-w-[120px] truncate" title={saveDir}>{saveDir}</span>
+                                <button onClick={handleChangeDirectory} className="text-slate-300 hover:text-white bg-slate-800 px-2 py-1.5 rounded-lg text-[10px] transition-colors shadow-sm" title="Змінити директорію">
+                                    ⏫ Вверх
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                     <span className="text-xs text-slate-500">Автосинхронізація увімкнена 🟢</span>
                 </div>
                 <DataTable
@@ -152,10 +200,26 @@ function App() {
                                     </span>
                                 </button>
 
+                                {/* КНОПКИ ЕКСПОРТУ */}
+                                <div className="border border-slate-800/80 p-2 rounded-xl bg-slate-950/40 space-y-2">
+                                    <span className="text-[10px] text-slate-500 uppercase tracking-wider block px-1">Експорт Даних:</span>
+                                    <div className="grid grid-cols-3 gap-1.5">
+                                        <button onClick={() => handleSaveData('csv')} className="bg-emerald-500/10 text-emerald-400 text-xs font-bold py-2 rounded-lg border border-emerald-900/50 hover:bg-emerald-500/20 transition-colors">CSV</button>
+                                        <button onClick={() => handleSaveData('json')} className="bg-amber-500/10 text-amber-400 text-xs font-bold py-2 rounded-lg border border-amber-900/50 hover:bg-amber-500/20 transition-colors">JSON</button>
+                                        <button onClick={() => handleSaveData('sqlite')} className="bg-blue-500/10 text-blue-400 text-xs font-bold py-2 rounded-lg border border-blue-900/50 hover:bg-blue-500/20 transition-colors">SQL</button>
+                                    </div>
+                                    <div className="flex items-center justify-between bg-slate-900 p-1.5 rounded-lg border border-slate-800">
+                                        <span className="text-[9px] text-slate-500 font-mono truncate pl-1" title={saveDir}>{saveDir}</span>
+                                        <button onClick={handleChangeDirectory} className="shrink-0 text-slate-300 hover:text-white bg-slate-800 px-2 py-1 rounded text-[10px] transition-colors ml-2 shadow-sm" title="Змінити директорію">
+                                            ⏫
+                                        </button>
+                                    </div>
+                                </div>
+
                                 {results.length > 0 && (
                                     <button
                                         onClick={handleClear}
-                                        className="w-full text-left text-xs font-medium text-red-400 hover:text-red-300 border border-slate-800 hover:border-red-900/40 hover:bg-red-950/20 px-4 py-3 rounded-xl transition-colors"
+                                        className="w-full text-left text-xs font-medium text-red-400 hover:text-red-300 border border-slate-800 hover:border-red-900/40 hover:bg-red-950/20 px-4 py-3 rounded-xl transition-colors mt-2"
                                     >
                                         🗑 Очистити робочі дані
                                     </button>
@@ -168,49 +232,23 @@ function App() {
                     <main className="flex-1 w-full min-w-0">
                         <div className="grid grid-cols-1 gap-6">
                             {results.map((card) => (
-                                <div
-                                    key={card.id}
-                                    className={`bg-slate-900/60 backdrop-blur border p-5 rounded-2xl shadow-xl flex flex-col gap-4 transition-all duration-300 ${
-                                        card.cardChecked ? 'border-slate-800 opacity-100' : 'border-slate-900/40 opacity-40'
-                                    }`}
-                                >
+                                <div key={card.id} className={`bg-slate-900/60 backdrop-blur border p-5 rounded-2xl shadow-xl flex flex-col gap-4 transition-all duration-300 ${card.cardChecked ? 'border-slate-800 opacity-100' : 'border-slate-900/40 opacity-40'}`}>
                                     {/* Панель керування картки */}
                                     <div className="flex flex-wrap items-center gap-4 sm:gap-6 bg-slate-950/60 border border-slate-800/60 p-3 px-4 rounded-xl shrink-0">
                                         <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-200 cursor-pointer select-none">
-                                            <input
-                                                type="checkbox"
-                                                className="w-4 h-4 accent-emerald-500 rounded cursor-pointer transition-transform active:scale-95"
-                                                checked={card.cardChecked}
-                                                onChange={() => toggleCardCheck(card.id)}
-                                            />
+                                            <input type="checkbox" className="w-4 h-4 accent-emerald-500 rounded cursor-pointer transition-transform active:scale-95" checked={card.cardChecked} onChange={() => toggleCardCheck(card.id)} />
                                             <span>Зберігати</span>
                                         </label>
 
                                         <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-200 cursor-pointer select-none border-l border-slate-800 pl-4 sm:pl-6">
-                                            <input
-                                                type="checkbox"
-                                                className="w-4 h-4 accent-indigo-500 rounded cursor-pointer transition-transform active:scale-95"
-                                                checked={card.uniqueness !== false}
-                                                onChange={() => toggleUniquenessCheck(card.id)}
-                                            />
+                                            <input type="checkbox" className="w-4 h-4 accent-indigo-500 rounded cursor-pointer transition-transform active:scale-95" checked={card.uniqueness !== false} onChange={() => toggleUniquenessCheck(card.id)} />
                                             <span>Унікальність</span>
                                         </label>
 
                                         <div className="flex items-center gap-2 border-l border-slate-800 pl-4 sm:pl-6 mr-auto">
-                                            <label htmlFor={`counter-${card.id}`} className="text-xs sm:text-sm font-semibold text-slate-200 select-none">
-                                                Глибина:
-                                            </label>
+                                            <label htmlFor={`counter-${card.id}`} className="text-xs sm:text-sm font-semibold text-slate-200 select-none">Глибина:</label>
                                             <div className="relative flex items-center bg-slate-900 border border-slate-700 rounded-lg overflow-hidden focus-within:border-cyan-500 transition-colors">
-                                                <input
-                                                    type="number"
-                                                    id={`counter-${card.id}`}
-                                                    min="0"
-                                                    max={card.maxDepth}
-                                                    step="1"
-                                                    value={card.currentDepth}
-                                                    onChange={(e) => handleDepthChange(card.id, e.target.value)}
-                                                    className="w-14 sm:w-16 bg-transparent text-center text-sm font-mono text-cyan-400 py-1 px-1 focus:outline-none"
-                                                />
+                                                <input type="number" id={`counter-${card.id}`} min="0" max={card.maxDepth} step="1" value={card.currentDepth} onChange={(e) => handleDepthChange(card.id, e.target.value)} className="w-14 sm:w-16 bg-transparent text-center text-sm font-mono text-cyan-400 py-1 px-1 focus:outline-none" />
                                                 <div className="flex flex-col border-l border-slate-700">
                                                     <button type="button" onClick={() => handleDepthChange(card.id, card.currentDepth + 1)} className="px-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] leading-none py-0.5 border-b border-slate-700">▲</button>
                                                     <button type="button" onClick={() => handleDepthChange(card.id, card.currentDepth - 1)} className="px-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] leading-none py-0.5">▼</button>
@@ -219,22 +257,13 @@ function App() {
                                             <span className="text-xs font-mono text-slate-500 select-none">/ {card.maxDepth}</span>
                                         </div>
 
-                                        <button
-                                            type="button"
-                                            onClick={() => toggleCleanText(card.id)}
-                                            className={`text-xs font-bold px-4 py-2 rounded-xl border transition-all duration-200 select-none ${
-                                                card.showCleanText
-                                                    ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-lg shadow-cyan-500/20'
-                                                    : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-slate-100'
-                                            }`}
-                                        >
+                                        <button type="button" onClick={() => toggleCleanText(card.id)} className={`text-xs font-bold px-4 py-2 rounded-xl border transition-all duration-200 select-none ${card.showCleanText ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-lg shadow-cyan-500/20' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-slate-100'}`}>
                                             {card.showCleanText ? '✨ Показати структуру' : '📄 Показати Картку'}
                                         </button>
                                     </div>
 
                                     {/* Контентна частина */}
                                     <div className="flex flex-col md:flex-row gap-5">
-                                        {/* Фото і лінки */}
                                         <div className="flex flex-col w-full md:w-44 shrink-0 gap-3">
                                             {card.img && (
                                                 <div className="w-full h-44 bg-slate-950/80 rounded-xl overflow-hidden border border-slate-800/80 flex items-center justify-center p-2 relative group">
@@ -253,11 +282,8 @@ function App() {
                                             </div>
                                         </div>
 
-                                        {/* Текстове дерево ліній */}
                                         <div className="flex-1 bg-slate-950/40 rounded-xl p-3 border border-slate-800/40 space-y-1 select-none max-h-100 overflow-y-auto custom-scrollbar">
-                                            {card.lines
-                                                .filter((line) => card.showCleanText ? (!line.isHtmlTag && parseInt(line.depth, 10) <= card.currentDepth) : (!line.isHtmlTag || parseInt(line.depth, 10) <= card.currentDepth))
-                                                .map((line) => (
+                                            {card.lines.filter((line) => card.showCleanText ? (!line.isHtmlTag && parseInt(line.depth, 10) <= card.currentDepth) : (!line.isHtmlTag || parseInt(line.depth, 10) <= card.currentDepth)).map((line) => (
                                                 <div key={line.index} className={`flex items-stretch gap-1 rounded pr-2 transition-colors ${card.showCleanText ? 'hover:bg-transparent py-0.5' : 'hover:bg-slate-900/40'} ${line.checked ? 'opacity-100' : 'opacity-30'}`}>
                                                     {!card.showCleanText ? (
                                                         <>
