@@ -20,6 +20,7 @@ export default function DataTable({ results, onDeleteRow, onDeleteColumn, onDele
             
             {/* Саме цей блок отримує свій скролбар, який завжди видимий */}
             <div className="flex-1 overflow-auto custom-scrollbar p-1">
+            
                 <table className="w-full text-left border-collapse text-sm text-slate-300">
                     <thead className="bg-slate-950/95 sticky top-0 z-10 shadow-sm border-b border-slate-800">
                         <tr>

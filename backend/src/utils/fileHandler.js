@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import puppeteer from 'puppeteer-extra'; // Використовуємо існуючий пакет для PDF
+import PDFDocument from 'pdfkit';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,7 +18,9 @@ export class FileHandler {
     }
 
     static getSavePath(customDir, filename) {
-        const baseDir = customDir ? path.resolve(customDir) : path.join(__dirname, '../../data');
+        const baseDir = customDir
+            ? path.resolve(customDir)
+            : path.join(__dirname, '../../data');
         if (!fs.existsSync(baseDir)) {
             fs.mkdirSync(baseDir, { recursive: true });
         }
@@ -25,13 +28,16 @@ export class FileHandler {
     }
 
     static saveToCSV(data, customDir = null) {
-        if (!data || data.length === 0) return { success: false, error: 'No data to save' };
+        if (!data || data.length === 0)
+            return { success: false, error: 'No data to save' };
         const filename = `results_${this.getFormattedTimestamp()}.csv`;
         const filePath = this.getSavePath(customDir, filename);
         const headers = Object.keys(data[0]).join(',');
 
         const rows = data.map((obj) =>
-            Object.values(obj).map((val) => `"${String(val).replace(/"/g, '""')}"`).join(',')
+            Object.values(obj)
+                .map((val) => `"${String(val).replace(/"/g, '""')}"`)
+                .join(','),
         );
 
         fs.writeFileSync(filePath, [headers, ...rows].join('\n'), 'utf8');
@@ -39,7 +45,8 @@ export class FileHandler {
     }
 
     static saveToJSON(data, customDir = null) {
-        if (!data || data.length === 0) return { success: false, error: 'No data to save' };
+        if (!data || data.length === 0)
+            return { success: false, error: 'No data to save' };
         const filename = `results_${this.getFormattedTimestamp()}.json`;
         const filePath = this.getSavePath(customDir, filename);
         fs.writeFileSync(filePath, JSON.stringify(data, null, 4), 'utf8');
@@ -48,8 +55,9 @@ export class FileHandler {
 
     static async saveToSQLite(data, customDir = null) {
         return new Promise(async (resolve, reject) => {
-            if (!data || data.length === 0) return resolve({ success: false, error: 'No data to save' });
-            
+            if (!data || data.length === 0)
+                return resolve({ success: false, error: 'No data to save' });
+
             const filename = `db_${this.getFormattedTimestamp()}.sqlite`;
             let sqlite3;
             try {
@@ -62,18 +70,20 @@ export class FileHandler {
             const db = new sqlite3.Database(filePath);
 
             const columns = Object.keys(data[0]);
-            const safeColumns = columns.map(c => `"${c.replace(/"/g, '""')}"`);
-            
-            const createTableQuery = `CREATE TABLE IF NOT EXISTS parsed_data (${safeColumns.map(c => `${c} TEXT`).join(', ')});`;
-            
+            const safeColumns = columns.map(
+                (c) => `"${c.replace(/"/g, '""')}"`,
+            );
+
+            const createTableQuery = `CREATE TABLE IF NOT EXISTS parsed_data (${safeColumns.map((c) => `${c} TEXT`).join(', ')});`;
+
             db.serialize(() => {
                 db.run(createTableQuery);
                 const placeholders = safeColumns.map(() => '?').join(', ');
                 const insertQuery = `INSERT INTO parsed_data VALUES (${placeholders})`;
                 const stmt = db.prepare(insertQuery);
-                
+
                 for (const row of data) {
-                    stmt.run(Object.values(row).map(val => String(val)));
+                    stmt.run(Object.values(row).map((val) => String(val)));
                 }
                 stmt.finalize();
             });
@@ -87,7 +97,8 @@ export class FileHandler {
 
     // НОВЕ: Експорт у XML
     static saveToXML(data, customDir = null) {
-        if (!data || data.length === 0) return { success: false, error: 'No data to save' };
+        if (!data || data.length === 0)
+            return { success: false, error: 'No data to save' };
         const filename = `results_${this.getFormattedTimestamp()}.xml`;
         const filePath = this.getSavePath(customDir, filename);
 
@@ -96,7 +107,9 @@ export class FileHandler {
             xml += `  <item index="${idx + 1}">\n`;
             for (const key in row) {
                 // XML-теги не можуть містити пробіли та спецсимволи (як у ваших семантичних шляхах)
-                const safeTag = key.replace(/[^a-zA-Z0-9]/g, '_').replace(/^([0-9])/, 'n_$1');
+                const safeTag = key
+                    .replace(/[^a-zA-Z0-9]/g, '_')
+                    .replace(/^([0-9])/, 'n_$1');
                 const safeVal = String(row[key])
                     .replace(/&/g, '&amp;')
                     .replace(/</g, '&lt;')
@@ -113,66 +126,106 @@ export class FileHandler {
 
     // НОВЕ: Експорт у PDF через Puppeteer
     static async saveToPDF(data, customDir = null) {
-        if (!data || data.length === 0) return { success: false, error: 'No data to save' };
-        const filename = `report_${this.getFormattedTimestamp()}.pdf`;
+        if (!data || data.length === 0)
+            return { success: false, error: 'Немає даних для збереження' };
+
+        const filename = `results_${this.getFormattedTimestamp()}.pdf`;
         const filePath = this.getSavePath(customDir, filename);
 
-        // Будуємо HTML-таблицю для генерації PDF
-        const columns = Object.keys(data[0]);
-        let html = `
-            <html>
-            <head>
-                <style>
-                    body { font-family: Arial, sans-serif; font-size: 10px; margin: 0; padding: 20px; }
-                    h2 { text-align: center; color: #333; }
-                    table { width: 100%; border-collapse: collapse; table-layout: fixed; word-wrap: break-word; }
-                    th, td { border: 1px solid #aaa; padding: 6px; text-align: left; overflow: hidden; text-overflow: ellipsis; }
-                    th { background-color: #f0f0f0; font-weight: bold; }
-                </style>
-            </head>
-            <body>
-                <h2>eBay Scraper Report - ${this.getFormattedTimestamp().replace('_', ' ')}</h2>
-                <table>
-                    <thead><tr>${columns.map(c => `<th>${c}</th>`).join('')}</tr></thead>
-                    <tbody>
-                        ${data.map(row => `<tr>${columns.map(c => `<td>${row[c] || ''}</td>`).join('')}</tr>`).join('')}
-                    </tbody>
-                </table>
-            </body>
-            </html>
-        `;
+        return new Promise((resolve, reject) => {
+            try {
+                // Створюємо альбомну орієнтацію (landscape), оскільки в таблиці багато колонок
+                const doc = new PDFDocument({
+                    layout: 'landscape',
+                    margin: 30,
+                });
+                const stream = fs.createWriteStream(filePath);
+                doc.pipe(stream);
 
-        try {
-            const browser = await puppeteer.launch({ headless: 'new' });
-            const page = await browser.newPage();
-            await page.setContent(html, { waitUntil: 'networkidle0' });
-            await page.pdf({ 
-                path: filePath, 
-                format: 'A4', 
-                landscape: true, // Горизонтально, бо колонок багато
-                margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
-            });
-            await browser.close();
-            return { success: true, filePath };
-        } catch (error) {
-            return { success: false, error: error.message };
-        }
+                // Підключаємо шрифт Arial для повної підтримки української мови
+                const windowsFontPath = 'C:\\Windows\\Fonts\\arial.ttf';
+                if (fs.existsSync(windowsFontPath)) {
+                    doc.font(windowsFontPath);
+                } else {
+                    console.warn(
+                        '⚠️ Системний шрифт Arial не знайдено. Можливі проблеми з відображенням кирилиці.',
+                    );
+                }
+
+                // Заголовок документа
+                doc.fontSize(18)
+                    .fillColor('#4f46e5')
+                    .text('Звіт скрапінгу eBay (Сформована таблиця)', {
+                        align: 'center',
+                    });
+                doc.fontSize(10)
+                    .fillColor('#64748b')
+                    .text(`Згенеровано: ${new Date().toLocaleString()}`, {
+                        align: 'center',
+                    });
+                doc.moveDown(2);
+
+                // Витягуємо назви колонок (динамічні ключі)
+                const headers = Object.keys(data[0]);
+
+                // Структуроване відображення кожного товару у вигляді картки-рядка
+                data.forEach((row, idx) => {
+                    doc.fontSize(12)
+                        .fillColor('#1e1b4b')
+                        .text(
+                            `Товар №${row['№'] || idx + 1} (ID: ${row['ID'] || '-'})`,
+                            { underline: true },
+                        );
+                    doc.moveDown(0.3);
+
+                    headers.forEach((header) => {
+                        if (header !== '№' && header !== 'ID') {
+                            doc.fontSize(10)
+                                .fillColor('#1e293b')
+                                .text(`${header}: `, { continued: true })
+                                .fillColor('#475569')
+                                .text(`${row[header] || '-'}`);
+                        }
+                    });
+
+                    doc.moveDown(0.8);
+                    // Малюємо тонку лінію-розділювач між товарами
+                    doc.moveTo(30, doc.y)
+                        .lineTo(760, doc.y)
+                        .strokeColor('#e2e8f0')
+                        .stroke();
+                    doc.moveDown(1);
+
+                    // Перевірка на ліміт висоти сторінки для перенесення
+                    if (doc.y > 520) {
+                        doc.addPage();
+                    }
+                });
+
+                doc.end();
+
+                stream.on('finish', () => resolve({ success: true, filePath }));
+                stream.on('error', (err) => reject(new Error(err.message)));
+            } catch (error) {
+                reject(error);
+            }
+        });
     }
 
     // ОНОВЛЕНО: Тепер скріншот не є обов'язковим, а дата додається в назву автоматично
     static saveDebugInfo(html, screenshotBuffer = null, prefix = 'debug') {
         const dir = path.join(__dirname, '../../data/debug');
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        
+
         const timestamp = this.getFormattedTimestamp();
         const htmlPath = path.join(dir, `${prefix}_${timestamp}.html`);
         fs.writeFileSync(htmlPath, html, 'utf8');
-        
+
         if (screenshotBuffer) {
             const screenshotPath = path.join(dir, `${prefix}_${timestamp}.png`);
             fs.writeFileSync(screenshotPath, screenshotBuffer);
         }
-        
+
         return htmlPath; // Повертаємо шлях, щоб вивести в консоль
     }
 }
