@@ -1,114 +1,14 @@
-/*import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-import { EbayScraper } from './services/scraper.js';
-
-puppeteer.use(StealthPlugin());
-
-export async function runEbayScraper(searchQuery) {
-    const browser = await puppeteer.launch({
-        headless: false,
-        userDataDir: './browser_profile',
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    try {
-        const pages = await browser.pages();
-        const page = pages[0];
-        const scraper = new EbayScraper(page);
-
-        await scraper.search(searchQuery);
-        
-        // Чекаємо, поки з'являться результати, щоб уникнути "Execution context was destroyed"
-        //await page.waitForSelector('.s-item__title', { timeout: 15000 });
-        
-        const data = await scraper.scrapePage();
-        return data;
-    } catch (error) {
-        console.error('Scraper Logic Error:', error.message);
-        throw error;
-    } finally {
-        // Гарантовано закриваємо браузер, щоб звільнити browser_profile
-        if (browser) await browser.close();
-    }
-}*/
-/*
 import { exec } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import puppeteer from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { EbayScraper } from './services/scraper.js';
+import { FileHandler } from './utils/fileHandler.js'; // ДОДАНО ІМПОРТ!
 
-puppeteer.use(StealthPlugin());
-
-// Визначаємо аналог __dirname для ES-модулів (оскільки файл у backend/src/)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Проста утиліта для паузи (очікування старту Chrome)
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function runEbayScraper(searchQuery) {
-    // 1. Динамічно визначаємо шлях до скрипту запуску браузера
-    // Якщо вибрав варіант з .sh, заміни 'launch_chrome.bat' на 'launch_chrome.sh'
-    const scriptPath = path.join(__dirname, 'launch_chrome.bat');
-    
-    // Запускаємо скрипт у фоновому режимі, щоб Node.js не блокував виконання
-    exec(`"${scriptPath}"`, (err) => {
-        if (err) {
-            console.error('❌ Не вдалося запустити Chrome через скрипт:', err.message);
-        }
-    });
-
-    // КРИТИЧНО: Даємо Chrome 2 секунди для ініціалізації порту 9222
-    await delay(2000);
-
-    let browser;
-    try {
-        // 2. Підключаємося до автоматично створеного процесу через CDP
-        browser = await puppeteer.connect({
-            browserURL: 'http://127.0.0.1:9222',
-            defaultViewport: null
-        });
-
-        // --- ТВОЯ ЗБЕРЕЖЕНА ЛОГІКА (БЕЗ ЗМІН) ---
-        const pages = await browser.pages();
-        const page = pages[0];
-        const scraper = new EbayScraper(page);
-
-        await scraper.search(searchQuery);
-        
-        // Очікування стабілізації сторінки
-        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {});
-        
-        const data = await scraper.scrapePage();
-        return data;
-        // --- КІНЕЦЬ ТВОЄЇ ЛОГІКИ ---
-
-    } catch (error) {
-        console.error('Scraper Logic Error:', error.message);
-        throw error;
-    } finally {
-        // Оскільки Node.js сам породжує вікно під кожен запит,
-        // цей блок коректно закриє весь процес Chrome в кінці,
-        // повністю звільняючи browser_profile для майбутніх запусків.
-        if (browser) {
-            console.log('🛑 Закриваємо сесію браузера та звільняємо профіль...');
-            await browser.close();
-        }
-    }
-}*/
-
-import { exec } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import puppeteer from 'puppeteer-extra';
-import { EbayScraper } from './services/scraper.js'; // переконайся, що шлях правильний
-
-// Допоміжна функція для затримки
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-export async function runEbayScraper(searchQuery) {
+// Додано параметр saveDebugHtml
+export async function runEbayScraper(searchQuery, saveDebugHtml = false) {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     const scriptPath = path.join(__dirname, 'launch_chrome.bat');
@@ -116,34 +16,29 @@ export async function runEbayScraper(searchQuery) {
     let browser = null;
 
     try {
-        // 1. КРОК: Перевіряємо, чи Chrome вже відкритий і слухає порт 9222
         console.log('🔍 Перевірка наявності активної сесії Chrome...');
         browser = await puppeteer.connect({
             browserURL: 'http://127.0.0.1:9222',
             defaultViewport: null
-        }).catch(() => null); // Якщо не запущений — поверне null замість падіння
+        }).catch(() => null);
 
-        // 2. КРОК: Якщо Хром НЕ запущений, запускаємо його через bat-скрипт
         if (!browser) {
             console.log('🌐 Chrome не знайдено на порту 9222. Запускаємо новий екземпляр...');
             exec(`"${scriptPath}"`, (err) => {
                 if (err) console.error('❌ Не вдалося запустити Chrome через скрипт:', err.message);
             });
 
-            // 3. КРОК: Динамічний цикл очікування порту (до 7 спроб із кроком в 1 сек)
             for (let attempt = 1; attempt <= 7; attempt++) {
                 try {
-                    await delay(1000); // Чекаємо секунду перед кожною спробою
+                    await delay(1000);
                     browser = await puppeteer.connect({
                         browserURL: 'http://127.0.0.1:9222',
                         defaultViewport: null
                     });
                     console.log(`✅ Успішно підключено до Chrome на спробі №${attempt}`);
-                    break; // Підключилися — виходимо з циклу спроб
+                    break;
                 } catch (connectError) {
-                    if (attempt === 7) {
-                        throw new Error('Chrome запускається занадто довго. Збільште ліміт спроб або перевірте launch_chrome.bat');
-                    }
+                    if (attempt === 7) throw new Error('Chrome запускається занадто довго.');
                     console.log(`⏳ Очікування ініціалізації порту 9222 (спроба ${attempt}/7)...`);
                 }
             }
@@ -151,36 +46,30 @@ export async function runEbayScraper(searchQuery) {
             console.log('🔄 Знайдено вже запущений Chrome. Перевикористовуємо поточне вікно.');
         }
 
-        // --- ТВОЯ ЗБЕРЕЖЕНА ЛОГІКА (БЕЗ ЗМІН) ---
         const pages = await browser.pages();
         const page = pages[0];
         const scraper = new EbayScraper(page);
 
         await scraper.search(searchQuery);
-        
-        // Очікування стабілізації сторінки
         await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {});
         
+        // НОВЕ: ЛОГІКА ДЕБАГУ
+        if (saveDebugHtml) {
+            const htmlContent = await page.content();
+            const savedPath = FileHandler.saveDebugInfo(htmlContent, null, 'ebay_page');
+            console.log(`💾 [DEBUG] HTML-код сторінки збережено: ${savedPath}`);
+        }
+
         const data = await scraper.scrapePage();
         return data;
-        // --- КІНЕЦЬ ТВОЄЇ ЛОГІКИ ---
 
     } catch (error) {
         console.error('❌ Помилка в логіці скрапера:', error.message);
         throw error;
     } finally {
-        // КРИТИЧНО ДЛЯ КЕРУВАННЯ ВІКНАМИ:
-        // Якщо ти хочеш, щоб після кожного пошуку Хром закривався повністю:
-        // if (browser) await browser.close();
-        
-        // Якщо ти хочеш, щоб вікно залишалося відкритим для повторних швидких пошуків:
         if (browser) {
             await browser.disconnect().catch(() => {});
-            console.log('🛑 Сесію Puppeteer відключено. Вікно Chrome збережено для наступних запитів.');
-            /*
-            await browser.close().catch(() => {}); 
-        console.log('🛑 Браузер повністю закрито.');
-            */
+            console.log('🛑 Сесію Puppeteer відключено. Вікно Chrome збережено.');
         }
     }
 }
