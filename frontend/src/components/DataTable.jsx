@@ -1,5 +1,5 @@
 // src/components/DataTable.jsx
-import React from 'react';
+//import React from 'react';
 
 export default function DataTable({ results, onDeleteRow, onDeleteColumn, onDeleteCell }) {
     const activeCards = results.filter((c) => c.cardChecked);
