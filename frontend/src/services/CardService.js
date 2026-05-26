@@ -11,6 +11,9 @@ export class CardService {
 
             let currentPathTracker = [];
             let originalPathTracker = [];
+            
+            // Лічильник для унікальності однакових шляхів в межах однієї картки
+            let cleanPathCounters = {};
 
             const linesWithPaths = card.lines.map((line) => {
                 const depth = parseInt(line.depth || 0, 10);
@@ -61,7 +64,15 @@ export class CardService {
                         }
                     }
                     
-                    finalSemanticPath = `B${bIndex}_${cleanSemanticPath}`;
+                    let baseSemanticPath = `B${bIndex}_${cleanSemanticPath}`;
+                    
+                    if (!cleanPathCounters[baseSemanticPath]) {
+                        cleanPathCounters[baseSemanticPath] = 0;
+                    }
+                    cleanPathCounters[baseSemanticPath]++;
+                    
+                    // Додаємо індекс входження, щоб уникнути колапсу однакових тегів (наприклад, двох span в одному div)
+                    finalSemanticPath = `${baseSemanticPath}_[${cleanPathCounters[baseSemanticPath]}]`;
                 }
 
                 return {
