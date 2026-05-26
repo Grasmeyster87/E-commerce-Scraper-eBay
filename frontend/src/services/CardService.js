@@ -10,6 +10,8 @@ export class CardService {
             );
 
             let currentPathTracker = [];
+            let originalPathTracker = [];
+
             const linesWithPaths = card.lines.map((line) => {
                 const depth = parseInt(line.depth || 0, 10);
                 const isHtmlTag =
@@ -17,23 +19,56 @@ export class CardService {
                     (typeof line.text === 'string' &&
                         line.text.trim().startsWith('<'));
 
-                // ОБЧИСЛЮЄМО СЕМАНТИЧНИЙ ШЛЯХ ДЛЯ ВСІХ (включаючи самі HTML теги на основі їхніх батьків)
-                const semanticPath = currentPathTracker
+                // Оригінальний шлях для відображення при наведенні (title)
+                const htmlTagsPath = originalPathTracker
+                    .slice(0, depth)
+                    .filter(Boolean)
+                    .join(' > ');
+
+                // Очищений шлях для групування в стовпці (видаляємо volatile класи типу bold, primary)
+                const cleanSemanticPath = currentPathTracker
                     .slice(0, depth)
                     .filter(Boolean)
                     .join(' > ');
 
                 if (isHtmlTag) {
-                    // Оновлюємо трекер для поточного рівня глибини
-                    currentPathTracker[depth] = line.text.trim();
+                    originalPathTracker[depth] = line.text.trim();
+                    originalPathTracker = originalPathTracker.slice(0, depth + 1);
+
+                    let cleanTagStr = line.text
+                        .replace(/\b(bold|large-\d|large|small|default|primary|secondary|negative|positive|regular|italic)\b/g, '')
+                        .replace(/\s+/g, ' ')
+                        .replace(/ class="\s*"/, '')
+                        .replace(/ class="([^"]*?)\s+"/g, ' class="$1"')
+                        .trim();
+
+                    currentPathTracker[depth] = cleanTagStr;
                     currentPathTracker = currentPathTracker.slice(0, depth + 1);
+                }
+
+                let finalSemanticPath = null;
+                if (isHtmlTag) {
+                    finalSemanticPath = cleanSemanticPath || null;
+                } else {
+                    // Для текстових вузлів визначаємо до якого блоку вони належать
+                    let bIndex = 99;
+                    for (let i = 1; i <= depth; i++) {
+                        const tag = originalPathTracker[i];
+                        if (tag) {
+                            if (tag.includes('__header')) { bIndex = 1; break; }
+                            if (tag.includes('__attributes')) { bIndex = 2; break; }
+                            if (tag.includes('__footer')) { bIndex = 3; break; }
+                        }
+                    }
+                    
+                    finalSemanticPath = `B${bIndex}_${cleanSemanticPath}`;
                 }
 
                 return {
                     ...line,
                     isHtmlTag,
-                    // Якщо шлях порожній (корінь дерева), запишемо null, інакше — рядок шляху
-                    semanticPath: semanticPath || null,
+                    semanticPath: finalSemanticPath,
+                    htmlTagsPath: htmlTagsPath || null, // Зберігаємо для відображення при наведенні
                 };
             });
 
@@ -216,7 +251,26 @@ export class CardService {
                 }
             });
         });
-        const columns = Array.from(columnsSet);
+        
+        // Сортуємо стовпці за блоками та індексами
+        const columns = Array.from(columnsSet).sort((a, b) => {
+            const matchA = a.match(/^B(\d+)_/);
+            const matchB = b.match(/^B(\d+)_/);
+            if (matchA && matchB) {
+                if (matchA[1] !== matchB[1]) return parseInt(matchA[1]) - parseInt(matchB[1]);
+            }
+            return a.localeCompare(b);
+        });
+
+        // Рахуємо індекси для красивого виводу
+        const blockCounters = {};
+        const colDisplayNumbers = {};
+        columns.forEach(col => {
+            const match = col.match(/^B(\d+)_/);
+            const b = match ? match[1] : '99';
+            if (!blockCounters[b]) blockCounters[b] = 1;
+            colDisplayNumbers[col] = blockCounters[b]++;
+        });
 
         // Будуємо рядки
         return activeCards.map((card, idx) => {
@@ -233,7 +287,12 @@ export class CardService {
                 const line = card.lines.find(
                     (l) => l.semanticPath === col && !l.isHtmlTag && l.checked,
                 );
-                rowObj[col] = line ? line.text : ''; // Якщо даних немає в цій картці, лишаємо порожнім
+                
+                const match = col.match(/^B(\d+)_/);
+                const blockName = (match && match[1] !== '99') ? `Блок ${match[1]}` : 'Інше';
+                const colName = `${blockName} - Вставка ${colDisplayNumbers[col]}`;
+
+                rowObj[colName] = line ? line.text : ''; // Якщо даних немає в цій картці, лишаємо порожнім
             });
 
             return rowObj;

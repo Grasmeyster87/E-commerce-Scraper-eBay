@@ -12,7 +12,23 @@ export default function DataTable({ results, onDeleteRow, onDeleteColumn, onDele
             }
         });
     });
-    const columns = Array.from(columnsSet);
+    const columns = Array.from(columnsSet).sort((a, b) => {
+        const matchA = a.match(/^B(\d+)_/);
+        const matchB = b.match(/^B(\d+)_/);
+        if (matchA && matchB) {
+            if (matchA[1] !== matchB[1]) return parseInt(matchA[1]) - parseInt(matchB[1]);
+        }
+        return a.localeCompare(b);
+    });
+
+    const blockCounters = {};
+    const colDisplayNumbers = {};
+    columns.forEach(col => {
+        const match = col.match(/^B(\d+)_/);
+        const b = match ? match[1] : '99';
+        if (!blockCounters[b]) blockCounters[b] = 1;
+        colDisplayNumbers[col] = blockCounters[b]++;
+    });
 
     return (
         // Встановлюємо жорстку висоту для контейнера, щоб скролбар таблиці завжди був у межах екрана браузера!
@@ -32,12 +48,33 @@ export default function DataTable({ results, onDeleteRow, onDeleteColumn, onDele
                             </th>
                             
                             {/* МІНІМАЛІСТИЧНІ ЗАГОЛОВКИ */}
-                            {columns.map((col, idx) => (
-                                <th key={col} className="p-2 border-r border-slate-800/50 font-mono text-xs text-indigo-300 relative group w-10 min-w-[60px]">
-                                    <div className="flex justify-center items-center h-full cursor-help px-2" title={col}>
+                            {columns.map((col, idx) => {
+                                let samplePath = col;
+                                for (const c of activeCards) {
+                                    const l = c.lines.find(x => x.semanticPath === col);
+                                    if (l && l.htmlTagsPath) {
+                                        samplePath = l.htmlTagsPath;
+                                        break;
+                                    }
+                                }
+
+                                const match = col.match(/^B(\d+)_/);
+                                let displayTitle = colDisplayNumbers[col];
+                                let blockNum = 'Поле';
+                                let bgClass = '';
+                                if (match) {
+                                    blockNum = match[1] === '99' ? 'Інше' : `Блок ${match[1]}`;
+                                    if (match[1] === '1') bgClass = 'bg-blue-900/10 border-blue-800/30';
+                                    else if (match[1] === '2') bgClass = 'bg-emerald-900/10 border-emerald-800/30';
+                                    else if (match[1] === '3') bgClass = 'bg-purple-900/10 border-purple-800/30';
+                                }
+
+                                return (
+                                <th key={col} className={`p-2 border-r border-slate-800/50 font-mono text-xs text-indigo-300 relative group w-10 min-w-[60px] ${bgClass}`}>
+                                    <div className="flex justify-center items-center h-full cursor-help px-2" title={samplePath}>
                                         <div className="flex flex-col items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                                            <span className="text-[10px] text-slate-500 leading-none">Поле</span>
-                                            <span className="font-bold text-slate-300">{idx + 1}</span>
+                                            <span className="text-[10px] text-slate-500 leading-none">{blockNum}</span>
+                                            <span className="font-bold text-slate-300">{displayTitle}</span>
                                         </div>
                                         
                                         <button 
@@ -49,7 +86,8 @@ export default function DataTable({ results, onDeleteRow, onDeleteColumn, onDele
                                         </button>
                                     </div>
                                 </th>
-                            ))}
+                                );
+                            })}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/50">
@@ -80,10 +118,18 @@ export default function DataTable({ results, onDeleteRow, onDeleteColumn, onDele
                                 {columns.map((col) => {
                                     const line = card.lines.find((l) => l.semanticPath === col && !l.isHtmlTag && l.checked);
                                     
+                                    const match = col.match(/^B(\d+)_/);
+                                    let bgClass = '';
+                                    if (match) {
+                                        if (match[1] === '1') bgClass = 'bg-blue-900/5';
+                                        else if (match[1] === '2') bgClass = 'bg-emerald-900/5';
+                                        else if (match[1] === '3') bgClass = 'bg-purple-900/5';
+                                    }
+                                    
                                     return (
-                                        <td key={col} className="p-3 border-r border-slate-800/40 whitespace-nowrap min-w-[150px] group/cell relative">
+                                        <td key={col} className={`p-3 border-r border-slate-800/40 whitespace-nowrap min-w-[150px] group/cell relative ${bgClass}`}>
                                             {line ? (
-                                                <div className="flex items-center justify-between gap-4">
+                                                <div className="flex items-center justify-between gap-4" title={line.htmlTagsPath || ''}>
                                                     <span className="text-slate-200 font-medium">{line.text}</span>
                                                     <button 
                                                         onClick={() => onDeleteCell(card.id, col)}
