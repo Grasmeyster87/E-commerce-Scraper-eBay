@@ -1,9 +1,24 @@
-// src/components/DataTable.jsx
-//import React from 'react';
+import React, { useState, useEffect } from 'react';
 
-export default function DataTable({ results, onDeleteRow, onDeleteColumn, onDeleteCell }) {
+export default function DataTable({ results, onDeleteRow, onDeleteColumn, onDeleteCell, itemsPerPageSelection, onClose }) {
     const activeCards = results.filter((c) => c.cardChecked);
 
+    // --- ПАГІНАЦІЯ ДЛЯ ТАБЛИЦІ ---
+    const [tablePage, setTablePage] = useState(1);
+    const itemsPerPage = itemsPerPageSelection || 60;
+    
+    // Розрахунок сторінок
+    const totalPages = Math.max(1, Math.ceil(activeCards.length / itemsPerPage));
+    
+    // Якщо при видаленні рядка ми опинилися на "порожній" сторінці — повертаємося назад
+    useEffect(() => {
+        if (tablePage > totalPages) setTablePage(totalPages);
+    }, [totalPages, tablePage]);
+
+    // Обрізаємо масив карток для поточної сторінки
+    const displayedCards = activeCards.slice((tablePage - 1) * itemsPerPage, tablePage * itemsPerPage);
+
+    // --- ФОРМУВАННЯ СТОВПЦІВ (на основі ВСІХ activeCards, щоб структура не стрибала) ---
     const columnsSet = new Set();
     activeCards.forEach((card) => {
         card.lines.forEach((line) => {
@@ -12,6 +27,7 @@ export default function DataTable({ results, onDeleteRow, onDeleteColumn, onDele
             }
         });
     });
+    
     const columns = Array.from(columnsSet).sort((a, b) => {
         const matchA = a.match(/^B(\d+)_/);
         const matchB = b.match(/^B(\d+)_/);
@@ -31,23 +47,51 @@ export default function DataTable({ results, onDeleteRow, onDeleteColumn, onDele
     });
 
     return (
-        // Встановлюємо жорстку висоту для контейнера, щоб скролбар таблиці завжди був у межах екрана браузера!
         <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl flex flex-col h-[calc(100vh-6rem)]">
             
-            {/* Саме цей блок отримує свій скролбар, який завжди видимий */}
+            {/* --- ВЕРХНЯ ПАНЕЛЬ КЕРУВАННЯ ТАБЛИЦЕЮ --- */}
+            <div className="flex flex-wrap items-center justify-between p-4 border-b border-slate-800 bg-slate-950/50 gap-4">
+                <button 
+                    onClick={onClose} 
+                    className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
+                >
+                    ⬅ Повернутися до карток
+                </button>
+
+                {/* Блок пагінації */}
+                <div className="flex items-center gap-4 text-sm font-semibold text-indigo-300 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl">
+                    <span>Відображення ({itemsPerPage} на стор.):</span>
+                    <button
+                        onClick={() => setTablePage(p => Math.max(1, p - 1))}
+                        disabled={tablePage === 1}
+                        className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white px-3 py-1 rounded-md transition-colors"
+                    >
+                        ◀
+                    </button>
+                    <span className="bg-indigo-500/20 px-3 py-1 rounded-md text-indigo-200 border border-indigo-500/30">
+                        {tablePage} / {totalPages}
+                    </span>
+                    <button
+                        onClick={() => setTablePage(p => Math.min(totalPages, p + 1))}
+                        disabled={tablePage === totalPages}
+                        className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white px-3 py-1 rounded-md transition-colors"
+                    >
+                        ▶
+                    </button>
+                </div>
+
+                <div className="text-sm font-semibold text-emerald-400 bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-900/50">
+                    Всього в таблиці: {activeCards.length}
+                </div>
+            </div>
+
             <div className="flex-1 overflow-auto custom-scrollbar p-1">
-            
                 <table className="w-full text-left border-collapse text-sm text-slate-300">
                     <thead className="bg-slate-950/95 sticky top-0 z-10 shadow-sm border-b border-slate-800">
                         <tr>
-                            <th className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-16 text-center">
-                                №
-                            </th>
-                            <th className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-32">
-                                ID / URL
-                            </th>
+                            <th className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-16 text-center">№</th>
+                            <th className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-32">ID / URL</th>
                             
-                            {/* МІНІМАЛІСТИЧНІ ЗАГОЛОВКИ */}
                             {columns.map((col, idx) => {
                                 let samplePath = col;
                                 for (const c of activeCards) {
@@ -91,62 +135,65 @@ export default function DataTable({ results, onDeleteRow, onDeleteColumn, onDele
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/50">
-                        {activeCards.map((card, idx) => (
-                            <tr key={card.id} className="hover:bg-slate-800/40 transition-colors">
-                                {/* № рядка */}
-                                <td className="p-3 border-r border-slate-800 text-center font-medium bg-slate-950/20 sticky left-0">
-                                    <div className="flex items-center justify-center gap-2">
-                                        <span className="text-slate-400">{idx + 1}</span>
-                                        <button 
-                                            onClick={() => onDeleteRow(card.id)}
-                                            className="text-red-500 hover:text-red-400 w-5 h-5 rounded hover:bg-red-500/10 font-sans font-bold text-xs transition-colors flex items-center justify-center"
-                                            title="Видалити рядок (зняти галочку з картки)"
-                                        >
-                                            ✕
-                                        </button>
-                                    </div>
-                                </td>
-                                
-                                {/* ID картки */}
-                                <td className="p-3 border-r border-slate-800 bg-slate-950/20">
-                                    <a href={card.url} target="_blank" rel="noreferrer" className="text-cyan-500 hover:underline font-mono text-xs">
-                                        {card.id}
-                                    </a>
-                                </td>
+                        {/* ОНОВЛЕНО: Тепер ми ітеруємося по displayedCards (пагінація), а не по всьому масиву */}
+                        {displayedCards.map((card, idx) => {
+                            // Абсолютний індекс для коректного "№" рядка
+                            const absoluteIndex = (tablePage - 1) * itemsPerPage + idx + 1;
+                            
+                            return (
+                                <tr key={card.id} className="hover:bg-slate-800/40 transition-colors">
+                                    <td className="p-3 border-r border-slate-800 text-center font-medium bg-slate-950/20 sticky left-0">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <span className="text-slate-400">{absoluteIndex}</span>
+                                            <button 
+                                                onClick={() => onDeleteRow(card.id)}
+                                                className="text-red-500 hover:text-red-400 w-5 h-5 rounded hover:bg-red-500/10 font-sans font-bold text-xs transition-colors flex items-center justify-center"
+                                                title="Видалити рядок (зняти галочку з картки)"
+                                            >
+                                                ✕
+                                            </button>
+                                        </div>
+                                    </td>
+                                    
+                                    <td className="p-3 border-r border-slate-800 bg-slate-950/20">
+                                        <a href={card.url} target="_blank" rel="noreferrer" className="text-cyan-500 hover:underline font-mono text-xs">
+                                            {card.id}
+                                        </a>
+                                    </td>
 
-                                {/* КЛІТИНКИ З ДАНИМИ (Ширина визначається контентом завдяки whitespace-nowrap) */}
-                                {columns.map((col) => {
-                                    const line = card.lines.find((l) => l.semanticPath === col && !l.isHtmlTag && l.checked);
-                                    
-                                    const match = col.match(/^B(\d+)_/);
-                                    let bgClass = '';
-                                    if (match) {
-                                        if (match[1] === '1') bgClass = 'bg-blue-900/5';
-                                        else if (match[1] === '2') bgClass = 'bg-emerald-900/5';
-                                        else if (match[1] === '3') bgClass = 'bg-purple-900/5';
-                                    }
-                                    
-                                    return (
-                                        <td key={col} className={`p-3 border-r border-slate-800/40 whitespace-nowrap min-w-[150px] group/cell relative ${bgClass}`}>
-                                            {line ? (
-                                                <div className="flex items-center justify-between gap-4" title={line.htmlTagsPath || ''}>
-                                                    <span className="text-slate-200 font-medium">{line.text}</span>
-                                                    <button 
-                                                        onClick={() => onDeleteCell(card.id, col)}
-                                                        className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/cell:opacity-100 flex items-center justify-center shrink-0"
-                                                        title="Видалити клітинку"
-                                                    >
-                                                        ✕
-                                                    </button>
-                                                </div>
-                                            ) : (
-                                                <span className="text-slate-700 select-none flex justify-center">-</span>
-                                            )}
-                                        </td>
-                                    );
-                                })}
-                            </tr>
-                        ))}
+                                    {columns.map((col) => {
+                                        const line = card.lines.find((l) => l.semanticPath === col && !l.isHtmlTag && l.checked);
+                                        
+                                        const match = col.match(/^B(\d+)_/);
+                                        let bgClass = '';
+                                        if (match) {
+                                            if (match[1] === '1') bgClass = 'bg-blue-900/5';
+                                            else if (match[1] === '2') bgClass = 'bg-emerald-900/5';
+                                            else if (match[1] === '3') bgClass = 'bg-purple-900/5';
+                                        }
+                                        
+                                        return (
+                                            <td key={col} className={`p-3 border-r border-slate-800/40 whitespace-nowrap min-w-[150px] group/cell relative ${bgClass}`}>
+                                                {line ? (
+                                                    <div className="flex items-center justify-between gap-4" title={line.htmlTagsPath || ''}>
+                                                        <span className="text-slate-200 font-medium">{line.text}</span>
+                                                        <button 
+                                                            onClick={() => onDeleteCell(card.id, col)}
+                                                            className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/cell:opacity-100 flex items-center justify-center shrink-0"
+                                                            title="Видалити клітинку"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-700 select-none flex justify-center">-</span>
+                                                )}
+                                            </td>
+                                        );
+                                    })}
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
                 {activeCards.length === 0 && (

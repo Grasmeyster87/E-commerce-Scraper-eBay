@@ -1,5 +1,4 @@
-// src/App.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { CardService } from './services/CardService';
 import DataTable from './components/DataTable';
@@ -8,427 +7,306 @@ import ProductCard from './components/ProductCard';
 import ProgressModal from './components/ProgressModal';
 
 function App() {
-    const [isTableRoute] = useState(
-        () =>
-            new URLSearchParams(window.location.search).get('view') === 'table',
-    );
-
-    const [query, setQuery] = useState(
-        () => localStorage.getItem('savedQuery') || '',
-    );
+    // ОНОВЛЕНО: Тепер це звичайний стан, ми не використовуємо URL для таблиці
+    const [isTableRoute, setIsTableRoute] = useState(false);
+    
+    const [query, setQuery] = useState(() => localStorage.getItem('savedQuery') || '');
     const [results, setResults] = useState(() => {
         const saved = localStorage.getItem('savedResults');
         return saved ? JSON.parse(saved) : [];
     });
     const [loading, setLoading] = useState(false);
+    const [autoScraping, setAutoScraping] = useState(false);
+    const [saveDebugHtml, setSaveDebugHtml] = useState(() => localStorage.getItem('saveDebugHtml') === 'true');
+    const [saveDir, setSaveDir] = useState(() => localStorage.getItem('saveDir') || 'backend/data');
 
-    // Новий стан для прапорця Debug HTML
-    const [saveDebugHtml, setSaveDebugHtml] = useState(
-        () => localStorage.getItem('saveDebugHtml') === 'true',
-    );
-    const [saveDir, setSaveDir] = useState(
-        () => localStorage.getItem('saveDir') || 'backend/data',
-    );
+    const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, itemsPerPage: 0 });
+    const [scrapeAllPages, setScrapeAllPages] = useState(false);
+    const [maxScrapePages, setMaxScrapePages] = useState(0); 
+    const [itemsPerPageSelection, setItemsPerPageSelection] = useState(60);
+    const [frontendPage, setFrontendPage] = useState(1);
+    
+    const autoScrapeRef = useRef(scrapeAllPages);
+    const maxPagesRef = useRef(maxScrapePages);
+    const autoScrapingRef = useRef(false);
+    useEffect(() => { autoScrapeRef.current = scrapeAllPages; }, [scrapeAllPages]);
+    useEffect(() => { maxPagesRef.current = maxScrapePages; }, [maxScrapePages]);
+    useEffect(() => { autoScrapingRef.current = autoScraping; }, [autoScraping]);
 
+    const saveTimerRef = useRef(null);
     useEffect(() => {
-        localStorage.setItem('savedResults', JSON.stringify(results));
+        if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+        const delay = autoScrapingRef.current ? 5000 : 300; 
+        saveTimerRef.current = setTimeout(() => {
+            try { localStorage.setItem('savedResults', JSON.stringify(results)); } catch(e) { console.warn('Досягнуто ліміт localStorage. Дані в пам\'яті збережені, але після оновлення сторінки частина може бути втрачена.'); }
+        }, delay);
+        return () => clearTimeout(saveTimerRef.current);
     }, [results]);
+    useEffect(() => { localStorage.setItem('savedQuery', query); }, [query]);
+    useEffect(() => { localStorage.setItem('saveDir', saveDir); }, [saveDir]);
+    useEffect(() => { localStorage.setItem('saveDebugHtml', saveDebugHtml); }, [saveDebugHtml]);
 
-    useEffect(() => {
-        localStorage.setItem('savedQuery', query);
-    }, [query]);
-
-    useEffect(() => {
-        localStorage.setItem('saveDir', saveDir);
-    }, [saveDir]);
-
-    useEffect(() => {
-        localStorage.setItem('saveDebugHtml', saveDebugHtml);
-    }, [saveDebugHtml]);
-
-    useEffect(() => {
-        const handleStorageChange = (e) => {
-            if (e.key === 'savedResults' && e.newValue)
-                setResults(JSON.parse(e.newValue));
-            if (e.key === 'saveDir' && e.newValue) setSaveDir(e.newValue);
-        };
-        window.addEventListener('storage', handleStorageChange);
-        return () => window.removeEventListener('storage', handleStorageChange);
-    }, []);
-
-    const handleScrape = async () => {
-        if (!query) return alert('Будь ласка, введіть запит для пошуку');
-        setLoading(true);
+    const handleScrape = async (action = 'search', isAutoCall = false) => {
+        if (!query && action === 'search') return alert('Будь ласка, введіть запит для пошуку');
+        
+        if (!isAutoCall) setLoading(true);
+        
         try {
-            const backendUrl =
-                import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
-            // Передаємо прапорець saveDebugHtml на бекенд
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
             const response = await axios.post(`${backendUrl}/api/scrape`, {
-                query,
-                saveDebugHtml,
+                query, saveDebugHtml, action, itemsPerPage: itemsPerPageSelection
             });
 
             const processed = CardService.processRawData(response.data.data);
-            setResults(processed);
+            
+            if (action === 'next') setResults(prev => [...prev, ...processed]); 
+            else setResults(processed); 
+            
+            setPagination(response.data.pagination);
+            if (action === 'search') setFrontendPage(1);
+
+            if (autoScrapeRef.current && response.data.pagination.currentPage < response.data.pagination.totalPages) {
+                if (!maxPagesRef.current || response.data.pagination.currentPage < maxPagesRef.current) {
+                    console.log(`Запуск таймера для сторінки ${response.data.pagination.currentPage + 1}...`);
+                    setAutoScraping(true);
+                    setTimeout(() => handleScrape('next', true), 3000); 
+                    return; 
+                }
+            }
+            
+            setAutoScraping(false);
+
         } catch (error) {
             const serverError = error.response?.data?.error || error.message;
             console.error('Помилка:', serverError);
-            alert(`Сталася помилка: ${serverError}`);
+            setAutoScraping(false);
+            if (!isAutoCall) alert(`Сталася помилка: ${serverError}`);
         } finally {
-            setLoading(false);
+            if (!isAutoCall) setLoading(false);
         }
     };
 
-    const openTableInNewTab = () => {
-        const url = new URL(window.location.href);
-        url.searchParams.set('view', 'table');
-        window.open(url.toString(), '_blank');
-    };
-
-    const handleChangeDirectory = () => {
-        const newDir = window.prompt(
-            'Введіть шлях до директорії збереження (відносно кореня сервера або абсолютний шлях):',
-            saveDir,
-        );
-        if (newDir !== null && newDir.trim() !== '') {
-            setSaveDir(newDir.trim());
-        }
+    // ОНОВЛЕНО: Відкриваємо таблицю безпосередньо в цій же вкладці
+    const openTableInSameTab = () => {
+        setIsTableRoute(true);
+        window.scrollTo(0, 0); // Прокрутка вгору при відкритті
     };
 
     const handleSaveData = async (format) => {
         const tableData = CardService.extractTableData(results);
-        if (tableData.length === 0)
-            return alert('Немає активних карток для збереження!');
+        if (tableData.length === 0) return alert('Немає активних карток для збереження!');
 
         try {
-            const backendUrl =
-                import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
+            const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
             const response = await axios.post(`${backendUrl}/api/save`, {
-                format,
-                data: tableData,
-                directory: saveDir,
+                format, data: tableData, directory: saveDir,
             });
-
-            if (response.data.success) {
-                alert(
-                    `✅ Дані успішно збережено!\nШлях: ${response.data.filePath}`,
-                );
-            }
+            if (response.data.success) alert(`✅ Дані успішно збережено!\nШлях: ${response.data.filePath}`);
         } catch (error) {
-            const errorMsg = error.response?.data?.error || error.message;
-            alert(`❌ Помилка збереження: ${errorMsg}`);
-        }
-    };
-
-    const handleSaveFormat = async (format) => {
-        const tableData = CardService.extractTableData(results);
-        if (!tableData || tableData.length === 0)
-            return alert('Немає даних для збереження');
-
-        try {
-            const response = await axios.post(
-                'http://localhost:5050/api/save',
-                {
-                    format,
-                    data: tableData,
-                    directory: saveDir, // Передаємо поточний каталог
-                },
-            );
-            if (response.data.success) {
-                alert(`Успішно збережено в: ${response.data.filePath}`);
-            }
-        } catch (error) {
-            console.error('Помилка збереження:', error);
-            alert(`Помилка: ${error.message}`);
+            alert(`❌ Помилка збереження: ${error.response?.data?.error || error.message}`);
         }
     };
 
     const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
     const [saveSteps, setSaveSteps] = useState([
-        { id: 'csv', name: 'Експорт у формат CSV', status: 'idle', path: '' },
-        { id: 'json', name: 'Експорт у формат JSON', status: 'idle', path: '' },
-        {
-            id: 'sqlite',
-            name: 'Запис у базу даних SQLite3',
-            status: 'idle',
-            path: '',
-        },
-        {
-            id: 'xml',
-            name: 'Форматування в структуру XML',
-            status: 'idle',
-            path: '',
-        },
-        { id: 'pdf', name: 'Генерація PDF (pdfkit)', status: 'idle', path: '' },
+        { id: 'csv', name: 'Експорт CSV', status: 'idle', path: '' },
+        { id: 'json', name: 'Експорт JSON', status: 'idle', path: '' },
+        { id: 'sqlite', name: 'Експорт SQLite3', status: 'idle', path: '' },
+        { id: 'xml', name: 'Експорт XML', status: 'idle', path: '' },
+        { id: 'pdf', name: 'Експорт PDF', status: 'idle', path: '' },
     ]);
 
     const handleSaveAllFormats = async () => {
         const tableData = CardService.extractTableData(results);
-        if (!tableData || tableData.length === 0) {
-            alert('❌ Немає активних або вибраних даних для збереження!');
-            return;
-        }
-
+        if (!tableData || tableData.length === 0) return alert('❌ Немає активних даних!');
         setIsProgressModalOpen(true);
-
-        // Скидаємо статус усіх кроків до 'pending'
-        setSaveSteps((prev) =>
-            prev.map((step) => ({ ...step, status: 'pending', path: '' })),
-        );
-
-        // Список форматів для послідовного кола на бекенд
+        setSaveSteps((prev) => prev.map((step) => ({ ...step, status: 'pending', path: '' })));
         const formats = ['csv', 'json', 'sqlite', 'xml', 'pdf'];
 
         for (const format of formats) {
-            // Оновлюємо поточний крок на "завантажується"
-            setSaveSteps((prev) =>
-                prev.map((step) =>
-                    step.id === format
-                        ? { ...step, status: 'processing' }
-                        : step,
-                ),
-            );
-
+            setSaveSteps((prev) => prev.map((step) => step.id === format ? { ...step, status: 'processing' } : step));
             try {
-                const response = await axios.post(
-                    'http://localhost:5050/api/save',
-                    {
-                        format,
-                        data: tableData,
-                        directory: saveDir,
-                    },
-                );
-
+                const response = await axios.post('http://localhost:5050/api/save', { format, data: tableData, directory: saveDir });
                 if (response.data.success) {
-                    setSaveSteps((prev) =>
-                        prev.map((step) =>
-                            step.id === format
-                                ? {
-                                      ...step,
-                                      status: 'success',
-                                      path: response.data.filePath,
-                                  }
-                                : step,
-                        ),
-                    );
-                } else {
-                    throw new Error(response.data.error || 'Помилка виконання');
-                }
+                    setSaveSteps((prev) => prev.map((step) => step.id === format ? { ...step, status: 'success', path: response.data.filePath } : step));
+                } else throw new Error(response.data.error || 'Помилка');
             } catch (err) {
-                console.error(`Помилка збереження для ${format}:`, err);
-                setSaveSteps((prev) =>
-                    prev.map((step) =>
-                        step.id === format
-                            ? { ...step, status: 'error', error: err.message }
-                            : step,
-                    ),
-                );
+                setSaveSteps((prev) => prev.map((step) => step.id === format ? { ...step, status: 'error', error: err.message } : step));
             }
         }
     };
 
-    const toggleCardCheck = (cardId) =>
-        setResults((prev) =>
-            prev.map((c) =>
-                c.id === cardId ? { ...c, cardChecked: !c.cardChecked } : c,
-            ),
-        );
-    const toggleUniquenessCheck = (cardId) =>
-        setResults((prev) =>
-            prev.map((c) =>
-                c.id === cardId ? { ...c, uniqueness: !c.uniqueness } : c,
-            ),
-        );
-    const toggleCleanText = (cardId) =>
-        setResults((prev) => CardService.toggleCleanText(prev, cardId));
-    const toggleLinkSave = (cardId, field) =>
-        setResults((prev) => CardService.toggleLinkSave(prev, cardId, field));
-    const handleDepthChange = (cardId, newValue) =>
-        setResults((prev) =>
-            CardService.handleDepthChange(prev, cardId, newValue),
-        );
-    const toggleLineCheck = (cardId, lineIndex) =>
-        setResults((prev) =>
-            CardService.toggleLineCheck(prev, cardId, lineIndex),
-        );
-
+    const toggleCardCheck = (cardId) => setResults((prev) => prev.map((c) => c.id === cardId ? { ...c, cardChecked: !c.cardChecked } : c));
+    const toggleUniquenessCheck = (cardId) => setResults((prev) => prev.map((c) => c.id === cardId ? { ...c, uniqueness: !c.uniqueness } : c));
+    const toggleCleanText = (cardId) => setResults((prev) => CardService.toggleCleanText(prev, cardId));
+    const toggleLinkSave = (cardId, field) => setResults((prev) => CardService.toggleLinkSave(prev, cardId, field));
+    const handleDepthChange = (cardId, newValue) => setResults((prev) => CardService.handleDepthChange(prev, cardId, newValue));
+    const toggleLineCheck = (cardId, lineIndex) => setResults((prev) => CardService.toggleLineCheck(prev, cardId, lineIndex));
     const handleClear = () => {
-        if (window.confirm('Ви дійсно хочете очистити всі дані?')) {
-            setResults([]);
-            setQuery('');
-            localStorage.removeItem('savedResults');
-            localStorage.removeItem('savedQuery');
+        if (window.confirm('Очистити всі дані?')) {
+            setResults([]); setQuery(''); setPagination({ currentPage: 1, totalPages: 1, itemsPerPage: 0 });
+            localStorage.removeItem('savedResults'); localStorage.removeItem('savedQuery');
         }
     };
 
-    // РЕНДЕР ТАБЛИЦІ
-    if (isTableRoute) {
-        return (
-            <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 font-sans">
-                <div className="flex justify-between items-center mb-4 px-2 flex-wrap gap-4">
-                    <div className="flex flex-wrap items-center gap-6">
-                        <h1 className="text-xl font-bold text-cyan-400">
-                            Зведена таблиця даних
-                        </h1>
+    const totalFrontendPages = Math.ceil(results.length / itemsPerPageSelection);
+    const displayedResults = results.slice((frontendPage - 1) * itemsPerPageSelection, frontendPage * itemsPerPageSelection);
 
-                        {/* КНОПКИ ЕКСПОРТУ */}
-                        <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 p-1.5 rounded-xl">
-                            <div className="flex justify-end">
-                                <button
-                                    onClick={handleSaveAllFormats}
-                                    className="bg-slate-800 hover:bg-slate-700 text-indigo-400 font-bold text-xs px-4 py-2 rounded-xl border border-slate-700 transition-colors flex items-center gap-1.5"
-                                >
-                                    📦 Експорт усього пакету значень
-                                </button>
-                            </div>
-                            <button
-                                onClick={() => handleSaveData('csv')}
-                                className="bg-emerald-500/10 text-emerald-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-emerald-900/50 hover:bg-emerald-500/20 transition-colors"
-                            >
-                                CSV
-                            </button>
-                            <button
-                                onClick={() => handleSaveData('json')}
-                                className="bg-amber-500/10 text-amber-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-amber-900/50 hover:bg-amber-500/20 transition-colors"
-                            >
-                                JSON
-                            </button>
-                            <button
-                                onClick={() => handleSaveData('sqlite')}
-                                className="bg-blue-500/10 text-blue-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-blue-900/50 hover:bg-blue-500/20 transition-colors"
-                            >
-                                SQL
-                            </button>
-                            <button
-                                onClick={() => handleSaveData('xml')}
-                                className="bg-fuchsia-500/10 text-fuchsia-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-fuchsia-900/50 hover:bg-fuchsia-500/20 transition-colors"
-                            >
-                                XML
-                            </button>
-                            <button
-                                onClick={() => handleSaveData('pdf')}
-                                className="bg-rose-500/10 text-rose-400 text-xs font-bold px-3 py-1.5 rounded-lg border border-rose-900/50 hover:bg-rose-500/20 transition-colors"
-                            >
-                                PDF
-                            </button>
-
- 
-                        </div>
-                    </div>
-                    <span className="text-xs text-slate-500">
-                        Автосинхронізація увімкнена 🟢
+    const PaginationBanner = () => (
+        results.length > 0 && (
+            <div className="bg-indigo-950/40 border border-indigo-500/30 p-4 rounded-2xl flex flex-wrap justify-between items-center text-sm font-semibold text-indigo-300 shadow-sm gap-4 mb-6">
+                <div className="flex items-center gap-2">
+                    <span>📄 Сторінка скрапера:</span>
+                    <span className="bg-indigo-500/20 px-3 py-1 rounded-md text-indigo-200 border border-indigo-500/30">
+                        {pagination.currentPage} / {pagination.totalPages || '?'}
                     </span>
                 </div>
-                <DataTable
-                    results={results}
-                    onDeleteRow={(cardId) => toggleCardCheck(cardId)}
-                    onDeleteColumn={(path) =>
-                        setResults((prev) =>
-                            CardService.deleteColumn(prev, path),
-                        )
-                    }
-                    onDeleteCell={(cardId, path) =>
-                        setResults((prev) =>
-                            CardService.deleteCell(prev, cardId, path),
-                        )
-                    }
+                <div className="flex items-center gap-4">
+                    <span>Відображення:</span>
+                    <button 
+                        onClick={() => setFrontendPage(p => Math.max(1, p - 1))}
+                        disabled={frontendPage === 1}
+                        className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white px-3 py-1 rounded-md transition-colors"
+                    >
+                        ◀
+                    </button>
+                    <span className="bg-indigo-500/20 px-3 py-1 rounded-md text-indigo-200 border border-indigo-500/30">
+                        {frontendPage} / {Math.max(1, totalFrontendPages)}
+                    </span>
+                    <button 
+                        onClick={() => setFrontendPage(p => Math.min(totalFrontendPages, p + 1))}
+                        disabled={frontendPage === totalFrontendPages || totalFrontendPages === 0}
+                        className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white px-3 py-1 rounded-md transition-colors"
+                    >
+                        ▶
+                    </button>
+                </div>
+                <div className="flex items-center gap-2">
+                    <span>📊 Всього зібрано у базу:</span>
+                    <span className="bg-emerald-500/20 px-3 py-1 rounded-md text-emerald-300 border border-emerald-500/30">
+                        {results.length} шт.
+                    </span>
+                </div>
+            </div>
+        )
+    );
+
+    // ОНОВЛЕНО: Відображення таблиці в тому самому дереві React
+    if (isTableRoute) {
+        return (
+            <div className="min-h-screen bg-slate-950 text-slate-100 p-4 font-sans flex flex-col">
+                <h1 className="text-xl font-bold text-cyan-400 text-center mb-4">Таблиця виводу</h1>
+                <div className="flex items-center justify-center gap-2 flex-wrap mb-4">
+                    <button onClick={handleSaveAllFormats} className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 text-white font-semibold text-xs py-2 px-4 rounded-xl shadow-lg transition-all">⚡ Збереження в усі формати</button>
+                    <button onClick={() => handleSaveData('csv')} className="bg-emerald-500/10 text-emerald-400 text-[11px] font-bold py-1.5 px-3 rounded-lg border border-emerald-900/50 hover:bg-emerald-500/20">CSV</button>
+                    <button onClick={() => handleSaveData('json')} className="bg-amber-500/10 text-amber-400 text-[11px] font-bold py-1.5 px-3 rounded-lg border border-amber-900/50 hover:bg-amber-500/20">JSON</button>
+                    <button onClick={() => handleSaveData('sqlite')} className="bg-blue-500/10 text-blue-400 text-[11px] font-bold py-1.5 px-3 rounded-lg border border-blue-900/50 hover:bg-blue-500/20">SQL</button>
+                    <button onClick={() => handleSaveData('xml')} className="bg-fuchsia-500/10 text-fuchsia-400 text-[11px] font-bold py-1.5 px-3 rounded-lg border border-fuchsia-900/50 hover:bg-fuchsia-500/20">XML</button>
+                    <button onClick={() => handleSaveData('pdf')} className="bg-rose-500/10 text-rose-400 text-[11px] font-bold py-1.5 px-3 rounded-lg border border-rose-900/50 hover:bg-rose-500/20">PDF</button>
+                </div>
+                
+                {/* Передаємо додаткові props для керування пагінацією та закриттям таблиці */}
+                <DataTable 
+                    results={results} 
+                    onDeleteRow={(id) => toggleCardCheck(id)} 
+                    onDeleteColumn={(p) => setResults(prev => CardService.deleteColumn(prev, p))} 
+                    onDeleteCell={(id, p) => setResults(prev => CardService.deleteCell(prev, id, p))} 
+                    itemsPerPageSelection={itemsPerPageSelection}
+                    onClose={() => setIsTableRoute(false)} 
                 />
+                
+                <ProgressModal isOpen={isProgressModalOpen} onClose={() => setIsProgressModalOpen(false)} saveSteps={saveSteps} />
             </div>
         );
     }
 
-    // РЕНДЕР КАРТОК
     return (
-        <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 md:p-8 font-sans selection:bg-cyan-500 selection:text-slate-900">
+        <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 font-sans selection:bg-cyan-500 selection:text-slate-900">
             <div className="max-w-[1600px] mx-auto space-y-6">
-                {/* ГОЛОВНА ПАНЕЛЬ ПОШУКУ */}
                 <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl shadow-2xl space-y-4">
-                    <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
-                        eBay Structural Skeleton
-                    </h1>
-
-                    <div className="flex flex-col sm:flex-row gap-3">
+                    <h1 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">eBay Structural Skeleton</h1>
+                    <div className="flex gap-3">
                         <input
                             type="text"
-                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500/50 transition-colors text-slate-200 placeholder-slate-600 font-medium"
-                            placeholder="Введіть товар для аналізу (наприклад: MacBook Pro)..."
+                            className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-cyan-500/50 outline-none text-slate-200 placeholder-slate-600"
+                            placeholder="Введіть товар..."
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            onKeyDown={(e) =>
-                                e.key === 'Enter' && handleScrape()
-                            }
+                            onKeyDown={(e) => e.key === 'Enter' && handleScrape('search')}
                             disabled={loading}
                         />
                         <button
-                            onClick={handleScrape}
+                            onClick={() => handleScrape('search')}
                             disabled={loading}
-                            className="bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-bold px-6 py-3 rounded-xl text-sm transition-all shadow-lg shadow-cyan-500/10 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none shrink-0"
+                            className="bg-gradient-to-r from-cyan-500 to-indigo-600 hover:from-cyan-400 hover:to-indigo-500 text-slate-950 font-bold px-6 py-3 rounded-xl shadow-lg active:scale-95 disabled:opacity-50 shrink-0"
                         >
-                            {loading ? 'Сканування...' : 'Сканувати'}
+                            {loading ? 'Сканування...' : 'Новий Пошук'}
                         </button>
                     </div>
-
-                    {/* НОВЕ: ЧЕКБОКС ЗБЕРЕЖЕННЯ HTML */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-slate-800/50 mt-2">
-                        <label className="flex items-center gap-2 text-xs font-medium text-slate-400 cursor-pointer hover:text-slate-300 transition-colors">
-                            <input
-                                type="checkbox"
-                                className="w-4 h-4 accent-indigo-500 rounded border-slate-700 bg-slate-900 cursor-pointer"
+                    
+                    <div className="flex items-center gap-3 px-2">
+                        <label className="flex items-center gap-2 cursor-pointer group text-slate-400 text-sm hover:text-slate-200 transition-colors">
+                            <input 
+                                type="checkbox" 
                                 checked={saveDebugHtml}
-                                onChange={(e) =>
-                                    setSaveDebugHtml(e.target.checked)
-                                }
+                                onChange={(e) => setSaveDebugHtml(e.target.checked)}
+                                className="w-4 h-4 accent-indigo-500 rounded cursor-pointer" 
                             />
-                            Зберігати оригінальний HTML в backend/data/debug
-                            (для аналізу верстки eBay)
+                            <span>Зберігати HTML сторінок для відлагодження</span>
                         </label>
                     </div>
                 </div>
 
                 <div className="flex flex-col lg:flex-row gap-6 items-start">
-                    {/* ЛІВА СТИКІ-ПАНЕЛЬ МЕНЮ */}
                     <Sidebar 
-                        saveDir={saveDir}
-                        setSaveDir={setSaveDir}
-                        openTableInNewTab={openTableInNewTab}
-                        results={results}
-                        handleSaveAllFormats={handleSaveAllFormats}
-                        handleSaveData={handleSaveData}
-                        handleClear={handleClear}
+                        saveDir={saveDir} setSaveDir={setSaveDir} 
+                        openTableInNewTab={openTableInSameTab} /* Передаємо нову функцію */
+                        results={results} handleSaveAllFormats={handleSaveAllFormats} handleSaveData={handleSaveData} handleClear={handleClear}
+                        pagination={pagination} scrapeAllPages={scrapeAllPages} setScrapeAllPages={setScrapeAllPages}
+                        onNextPage={() => handleScrape('next')} loading={loading}
+                        maxScrapePages={maxScrapePages} setMaxScrapePages={setMaxScrapePages}
+                        itemsPerPageSelection={itemsPerPageSelection} setItemsPerPageSelection={setItemsPerPageSelection}
                     />
 
-                    {/* ПРАВА ОСНОВНА ЧАСТИНА (Без змін) */}
                     <main className="flex-1 w-full min-w-0">
+                        {autoScraping && (
+                            <div className="bg-amber-950/40 border border-amber-500/30 p-4 rounded-2xl flex items-center justify-between text-sm font-semibold text-amber-300 shadow-sm gap-4 mb-4 animate-pulse">
+                                <div className="flex items-center gap-3">
+                                    <span className="animate-spin inline-block">⏳</span>
+                                    <span>Авто-скрапінг: завантажується сторінка {pagination.currentPage + 1} / {maxScrapePages || pagination.totalPages}...</span>
+                                </div>
+                                <button 
+                                    onClick={() => { setScrapeAllPages(false); setAutoScraping(false); }}
+                                    className="bg-red-600 hover:bg-red-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                                >
+                                    ⏹ Зупинити
+                                </button>
+                            </div>
+                        )}
+                        <PaginationBanner />
+
                         <div className="grid grid-cols-1 gap-6">
-                            {results.map((card) => (
+                            {displayedResults.map((card) => (
                                 <ProductCard 
-                                    key={card.id}
-                                    card={card}
-                                    toggleCardCheck={toggleCardCheck}
-                                    toggleUniquenessCheck={toggleUniquenessCheck}
-                                    handleDepthChange={handleDepthChange}
-                                    toggleCleanText={toggleCleanText}
-                                    toggleLinkSave={toggleLinkSave}
-                                    toggleLineCheck={toggleLineCheck}
+                                    key={card.id} card={card} toggleCardCheck={toggleCardCheck} toggleUniquenessCheck={toggleUniquenessCheck}
+                                    handleDepthChange={handleDepthChange} toggleCleanText={toggleCleanText} toggleLinkSave={toggleLinkSave} toggleLineCheck={toggleLineCheck}
                                 />
                             ))}
 
                             {results.length === 0 && !loading && (
                                 <div className="text-center text-slate-500 py-20 bg-slate-900/20 rounded-3xl border border-dashed border-slate-800">
-                                    ✨ Панель порожня. Введіть пошуковий запит,
-                                    щоб отримати динамічні структури.
+                                    ✨ Панель порожня. Зробіть пошук.
                                 </div>
                             )}
+                        </div>
+
+                        <div className="mt-6">
+                            <PaginationBanner />
                         </div>
                     </main>
                 </div>
             </div>
-            
-            <ProgressModal 
-                isOpen={isProgressModalOpen} 
-                onClose={() => setIsProgressModalOpen(false)} 
-                saveSteps={saveSteps} 
-            />
+            <ProgressModal isOpen={isProgressModalOpen} onClose={() => setIsProgressModalOpen(false)} saveSteps={saveSteps} />
         </div>
     );
 }
