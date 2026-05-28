@@ -4,7 +4,8 @@ export default function Sidebar({
     saveDir, setSaveDir, openTableInNewTab, results,
     handleSaveAllFormats, handleSaveData, handleClear,
     pagination, scrapeAllPages, setScrapeAllPages, onNextPage, loading,
-    maxScrapePages, setMaxScrapePages, itemsPerPageSelection, setItemsPerPageSelection
+    maxScrapePages, setMaxScrapePages, itemsPerPageSelection, setItemsPerPageSelection,
+    dbSettings, setDbSettings // ДОДАНО: Передаємо налаштування БД
 }) {
     return (
         <aside className="w-full lg:w-64 shrink-0 lg:sticky lg:top-6 space-y-4">
@@ -84,8 +85,8 @@ export default function Sidebar({
 
             <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-4 rounded-2xl shadow-xl space-y-4">
                 <div className="space-y-2 pt-1">
-<button
-                        onClick={openTableInNewTab} // Назва пропсу лишилась, але тепер він перемикає вигляд
+                    <button
+                        onClick={openTableInNewTab} 
                         disabled={results.length === 0}
                         className="w-full text-left text-xs font-bold px-4 py-3 rounded-xl border transition-all duration-300 flex items-center justify-between disabled:opacity-40 disabled:pointer-events-none bg-indigo-500 text-white border-indigo-400 shadow-lg shadow-indigo-500/20 hover:bg-indigo-400"
                     >
@@ -120,6 +121,80 @@ export default function Sidebar({
                             🗑 Очистити робочі дані
                         </button>
                     )}
+                </div>
+            </div>
+
+            {/* НОВИЙ БЛОК: НАЛАШТУВАННЯ SQLITE3 */}
+            <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-xl space-y-4">
+                <h3 className="text-xs font-bold text-cyan-400 tracking-wider uppercase px-1 flex items-center gap-2">
+                    🗄️ База даних (SQLite3)
+                </h3>
+                
+                <div className="space-y-3 px-1 text-[11px] text-slate-300">
+                    <label className="flex items-center gap-3 cursor-pointer group hover:text-white">
+                        <input 
+                            type="checkbox" 
+                            checked={dbSettings.saveToDefault}
+                            onChange={(e) => setDbSettings(p => ({...p, saveToDefault: e.target.checked}))}
+                            className="w-4 h-4 accent-cyan-500 rounded" 
+                        />
+                        <span>Зберігати в БД за замовчуванням (кожен запит в нову таблицю)</span>
+                    </label>
+
+                    <label className="flex items-center gap-3 cursor-pointer group hover:text-white">
+                        <input 
+                            type="checkbox" 
+                            checked={dbSettings.loadLatestOnStart}
+                            onChange={(e) => setDbSettings(p => ({...p, loadLatestOnStart: e.target.checked}))}
+                            className="w-4 h-4 accent-cyan-500 rounded" 
+                        />
+                        <span>Вивід останніх результатів при завантаженні</span>
+                    </label>
+
+                    <div className="border-t border-slate-800 my-2 pt-2">
+                        <label className="flex items-center gap-3 cursor-pointer group hover:text-white mb-2">
+                            <input 
+                                type="checkbox" 
+                                checked={dbSettings.saveToCustom}
+                                onChange={(e) => setDbSettings(p => ({...p, saveToCustom: e.target.checked}))}
+                                className="w-4 h-4 accent-indigo-500 rounded" 
+                            />
+                            <span>Окреме збереження бази даних</span>
+                        </label>
+                        
+                        {dbSettings.saveToCustom && (
+                            <input
+                                type="text"
+                                value={dbSettings.customPath}
+                                onChange={(e) => setDbSettings(p => ({...p, customPath: e.target.value}))}
+                                placeholder="Шлях: D:/my_databases/..."
+                                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 font-mono text-[10px] focus:border-indigo-500 outline-none"
+                            />
+                        )}
+                    </div>
+
+                    <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 space-y-2">
+                        <span className="font-bold text-slate-400">Джерело виводу (Читання):</span>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                                type="radio" name="dbSource" value="default"
+                                checked={dbSettings.source === 'default'}
+                                onChange={(e) => setDbSettings(p => ({...p, source: e.target.value}))}
+                                className="accent-cyan-500"
+                            />
+                            <span>Дефолтна (default)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input 
+                                type="radio" name="dbSource" value="custom"
+                                disabled={!dbSettings.customPath}
+                                checked={dbSettings.source === 'custom'}
+                                onChange={(e) => setDbSettings(p => ({...p, source: e.target.value}))}
+                                className="accent-indigo-500"
+                            />
+                            <span className={!dbSettings.customPath ? 'opacity-50' : ''}>Власний шлях</span>
+                        </label>
+                    </div>
                 </div>
             </div>
         </aside>
