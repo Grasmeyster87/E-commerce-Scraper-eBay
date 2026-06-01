@@ -6,10 +6,19 @@ import Sidebar from './components/Sidebar';
 import ProductCard from './components/ProductCard';
 import ProgressModal from './components/ProgressModal';
 
-function App() {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
+// API backend endpoint fallback from environment variables
+const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
 
-    // Стан налаштувань SQLite
+/**
+ * Main Application Component
+ * Manages the state, scraping orchestration, and SQLite3 database synchronization
+ * for the eBay structural skeleton parsing tool.
+ */
+function App() {
+    /**
+     * SQLite3 Database settings state.
+     * Persisted locally to maintain user configuration across page reloads.
+     */
     const [dbSettings, setDbSettings] = useState(() => {
         const saved = localStorage.getItem('dbSettings');
         return saved
@@ -23,67 +32,133 @@ function App() {
               };
     });
 
+    // Active SQLite database table name for the current scraping session
     const [activeTable, setActiveTable] = useState('');
-    const [results, setResults] = useState([]); // Повний накопичувальний масив поточної сесії
+
+    // Cumulative array storing all scraped cards accumulated during the session
+    const [results, setResults] = useState([]);
+
+    // UI routing state to toggle between standard card feed and spreadsheet data table
     const [isTableRoute, setIsTableRoute] = useState(false);
-    const [query, setQuery] = useState(() => localStorage.getItem('savedQuery') || '');
+
+    // Search input query state, cached in localStorage
+    const [query, setQuery] = useState(
+        () => localStorage.getItem('savedQuery') || '',
+    );
+
+    // UI loading overlay and button lock state
     const [loading, setLoading] = useState(false);
+
+    // State indicating if the automated multi-page scraping loop is running
     const [autoScraping, setAutoScraping] = useState(false);
+
+    // Flag to enable/disable saving raw HTML snapshots for backend debugging
     const [saveDebugHtml, setSaveDebugHtml] = useState(false);
+
+    // Target directory path for file exports (CSV, JSON, PDF, etc.)
     const [saveDir, setSaveDir] = useState('backend/data');
 
+    // Scraper-specific pagination tracker (synchronized with target website state)
     const [pagination, setPagination] = useState({
         currentPage: 1,
         totalPages: 1,
         itemsPerPage: 60,
     });
+
+    // Scraper automation configs
     const [scrapeAllPages, setScrapeAllPages] = useState(false);
     const [maxScrapePages, setMaxScrapePages] = useState(0);
     const [itemsPerPageSelection, setItemsPerPageSelection] = useState(60);
+
+    // Frontend-only pagination state for rendering localized chunks of accumulated data
     const [frontendPage, setFrontendPage] = useState(1);
 
+    /**
+     * Refs to capture the absolute latest state variables inside async setTimeout loops.
+     * Prevents stale closures during automated recursive scraping.
+     */
     const autoScrapeRef = useRef(scrapeAllPages);
     const maxPagesRef = useRef(maxScrapePages);
-    useEffect(() => { autoScrapeRef.current = scrapeAllPages; }, [scrapeAllPages]);
-    useEffect(() => { maxPagesRef.current = maxScrapePages; }, [maxScrapePages]);
+    useEffect(() => {
+        autoScrapeRef.current = scrapeAllPages;
+    }, [scrapeAllPages]);
+    useEffect(() => {
+        maxPagesRef.current = maxScrapePages;
+    }, [maxScrapePages]);
 
+    // Cache state modifications to localStorage
     useEffect(() => {
         localStorage.setItem('dbSettings', JSON.stringify(dbSettings));
     }, [dbSettings]);
+
     useEffect(() => {
         localStorage.setItem('savedQuery', query);
     }, [query]);
 
-    // Завантаження останньої збереженої таблиці при старті проекту
+    /**
+     * Auto-load effect.
+     * Restores the latest active database table and its cards on application startup.
+     */
+    // 1. Create a ref to capture the current config object
+    const dbSettingsRef = useRef(dbSettings);
+
+    // 2. Synchronize the ref whenever settings change (lightweight in-memory operation)
+    useEffect(() => {
+        dbSettingsRef.current = dbSettings;
+    }, [dbSettings]);
+
+    // 3. Auto-load effect is now fully ESLint-clean (no mutable deps)
     useEffect(() => {
         if (dbSettings.loadLatestOnStart) {
+            // Pass the ref's current value in the request payload
             axios
-                .post(`${backendUrl}/api/tables/latest`, { dbSettings })
+                .post(`${backendUrl}/api/tables/latest`, {
+                    dbSettings: dbSettingsRef.current,
+                })
                 .then((res) => {
                     if (res.data.tableName) {
                         setActiveTable(res.data.tableName);
-                        // Одноразово стягуємо всі наявні записи для відновлення стану фронтенду
-                        axios.post(`${backendUrl}/api/cards/list`, {
-                            dbSettings,
-                            tableName: res.data.tableName,
-                            page: 1,
-                            limit: 100000
-                        }).then(cardsRes => {
-                            setResults(cardsRes.data.cards);
-                            setFrontendPage(1);
-                        });
+
+                        axios
+                            .post(`${backendUrl}/api/cards/list`, {
+                                dbSettings: dbSettingsRef.current, // also sourced from the ref
+                                tableName: res.data.tableName,
+                                page: 1,
+                                limit: 100000,
+                            })
+                            .then((cardsRes) => {
+                                setResults(cardsRes.data.cards);
+                                setFrontendPage(1);
+                            });
                     }
                 })
-                .catch((err) => console.error('Помилка завантаження останньої таблиці', err));
+                .catch((err) =>
+                    console.error(
+                        'Failed to auto-load latest SQLite table:',
+                        err,
+                    ),
+                );
         }
-    }, [dbSettings.source]);
+        // Only watch triggers that should genuinely initiate a database reload
+    }, [dbSettings.source, dbSettings.loadLatestOnStart]);
 
-    // ГОЛОВНИЙ СКРАПІНГ (ВИПРАВЛЕНО ЗАМИКАННЯ ЧЕРЕЗ RECURSIVE OVERRIDE)
-    const handleScrape = async (action = 'search', isAutoCall = false, overrideTable = null) => {
-        if (!query && action === 'search') return alert('Будь ласка, введіть запит для пошуку');
+    /**
+     * Core Scraping Orchestration Function.
+     * Communicates with backend Puppeteer service to execute initial search or fetch next pages.
+     * * @param {string} action - Scraper command ('search' | 'next')
+     * @param {boolean} isAutoCall - Indicates if the invocation is part of an automated loop
+     * @param {string|null} overrideTable - Direct string payload to bypass React state stale closure
+     */
+    const handleScrape = async (
+        action = 'search',
+        isAutoCall = false,
+        overrideTable = null,
+    ) => {
+        if (!query && action === 'search')
+            return alert('Please enter a search query');
         if (!isAutoCall) setLoading(true);
 
-        // Визначаємо ім'я таблиці: пріоритет у переданого аргументу, щоб уникнути stale closure
+        // Fallback to override parameter to ensure the recursive step uses the correct sequential table
         const currentTableName = overrideTable || activeTable;
 
         try {
@@ -96,44 +171,56 @@ function App() {
                 activeTable: currentTableName,
             });
 
-            if (!response.data.success) throw new Error(response.data.error || 'Помилка сервера');
+            if (!response.data.success)
+                throw new Error(response.data.error || 'Server error');
 
             const newTableName = response.data.tableName;
 
             if (action === 'search') {
                 setActiveTable(newTableName);
-                setResults(response.data.data); // Для нового пошуку перезаписуємо стейт
+                setResults(response.data.data); // Reset state array on new search instance
                 setFrontendPage(1);
             } else {
-                // Для наступних сторінок — стабільно накопичуємо нові картки у кінець масиву
+                // Accumulate next page data seamlessly into the single historical session array
                 setResults((prev) => [...prev, ...response.data.data]);
             }
 
             setPagination(response.data.pagination);
 
-            // Логіка авто-скрапінгу наступних сторінок
+            // Automated multi-page sequence validation
             if (
                 autoScrapeRef.current &&
-                response.data.pagination.currentPage < response.data.pagination.totalPages
+                response.data.pagination.currentPage <
+                    response.data.pagination.totalPages
             ) {
-                if (!maxPagesRef.current || response.data.pagination.currentPage < maxPagesRef.current) {
+                if (
+                    !maxPagesRef.current ||
+                    response.data.pagination.currentPage < maxPagesRef.current
+                ) {
                     setAutoScraping(true);
-                    // Передаємо актуальне ім'я таблиці прямо в наступний виклик функції!
-                    setTimeout(() => handleScrape('next', true, newTableName), 3000);
+
+                    // Recursive call with direct tableName pass to eliminate async state scoping bugs
+                    setTimeout(
+                        () => handleScrape('next', true, newTableName),
+                        3000,
+                    );
                     return;
                 }
             }
             setAutoScraping(false);
         } catch (error) {
-            console.error('Помилка скрапінгу:', error);
+            console.error('Scraping handler failure:', error);
             setAutoScraping(false);
-            if (!isAutoCall) alert(`Сталася помилка: ${error.message}`);
+            if (!isAutoCall) alert(`Error occurred: ${error.message}`);
         } finally {
             if (!isAutoCall) setLoading(false);
         }
     };
 
-    // Оновлення поодинокої картки в базі даних SQLite3
+    /**
+     * Persists atomic card modifications directly to the backend SQLite3 database.
+     * @param {Object} updatedCard - The modified card entity with updated field rules
+     */
     const updateCardInDb = async (updatedCard) => {
         try {
             await axios.put(`${backendUrl}/api/cards/${updatedCard.id}`, {
@@ -142,10 +229,19 @@ function App() {
                 updates: updatedCard,
             });
         } catch (err) {
-            console.error('Помилка оновлення запису в БД', err);
+            console.error(
+                'Failed to sync card state update with SQLite3:',
+                err,
+            );
         }
     };
 
+    /**
+     * Higher-Order Helper to execute localized state mutations and automatically sync them to DB.
+     * @param {Function} actionFunc - Pure function modifying the results array
+     * @param {string} cardId - target identifier
+     * @param {...any} args - Optional rest parameters for the structural mutations
+     */
     const handleActionAndSync = (actionFunc, cardId, ...args) => {
         const newResults = actionFunc(results, cardId, ...args);
         setResults(newResults);
@@ -153,17 +249,41 @@ function App() {
         if (updatedCard) updateCardInDb(updatedCard);
     };
 
+    // Component-to-DB synced event dispatchers for processing options
     const toggleCardCheck = (id) =>
-        handleActionAndSync((res, cid) => res.map((c) => c.id === cid ? { ...c, cardChecked: !c.cardChecked } : c), id);
+        handleActionAndSync(
+            (res, cid) =>
+                res.map((c) =>
+                    c.id === cid ? { ...c, cardChecked: !c.cardChecked } : c,
+                ),
+            id,
+        );
     const toggleUniquenessCheck = (id) =>
-        handleActionAndSync((res, cid) => res.map((c) => c.id === cid ? { ...c, uniqueness: !c.uniqueness } : c), id);
-    const toggleCleanText = (id) => handleActionAndSync(CardService.toggleCleanText, id);
-    const toggleLinkSave = (id, field) => handleActionAndSync(CardService.toggleLinkSave, id, field);
-    const handleDepthChange = (id, val) => handleActionAndSync(CardService.handleDepthChange, id, val);
-    const toggleLineCheck = (id, lineIdx) => handleActionAndSync(CardService.toggleLineCheck, id, lineIdx);
+        handleActionAndSync(
+            (res, cid) =>
+                res.map((c) =>
+                    c.id === cid ? { ...c, uniqueness: !c.uniqueness } : c,
+                ),
+            id,
+        );
+    const toggleCleanText = (id) =>
+        handleActionAndSync(CardService.toggleCleanText, id);
+    const toggleLinkSave = (id, field) =>
+        handleActionAndSync(CardService.toggleLinkSave, id, field);
+    const handleDepthChange = (id, val) =>
+        handleActionAndSync(CardService.handleDepthChange, id, val);
+    const toggleLineCheck = (id, lineIdx) =>
+        handleActionAndSync(CardService.toggleLineCheck, id, lineIdx);
 
+    /**
+     * Clears UI workspace context without affecting safe historical SQLite entries.
+     */
     const handleClear = () => {
-        if (window.confirm('Очистити робоче вікно? (Дані в БД залишаться)')) {
+        if (
+            window.confirm(
+                'Clear workspace? (Database tables will remain secure)',
+            )
+        ) {
             setActiveTable('');
             setResults([]);
             setQuery('');
@@ -171,8 +291,12 @@ function App() {
         }
     };
 
+    /**
+     * Dispatches standalone file format extraction tasks to server utility layer.
+     * @param {string} format - Document format type ('csv' | 'json' | 'sqlite' | 'xml' | 'pdf')
+     */
     const handleSaveData = async (format) => {
-        if (!activeTable) return alert('Немає активної таблиці!');
+        if (!activeTable) return alert('No active scraping table found');
         try {
             const res = await axios.post(`${backendUrl}/api/save`, {
                 format,
@@ -180,68 +304,112 @@ function App() {
                 dbSettings,
                 tableName: activeTable,
             });
-            if (res.data.success) alert(`✅ Збережено!\nШлях: ${res.data.filePath}`);
+            if (res.data.success)
+                alert(`✅ Saved successfully!\nPath: ${res.data.filePath}`);
         } catch (error) {
-            alert(`❌ Помилка: ${error.response?.data?.error || error.message}`);
+            alert(
+                `❌ Export error: ${error.response?.data?.error || error.message}`,
+            );
         }
     };
 
-    // Розрахунок пагінації для локального масиву відображення
-    const totalFrontendPages = Math.max(1, Math.ceil(results.length / itemsPerPageSelection));
+    // Derived local frontend state logic for displaying strict chunks of cumulative session data
+    const totalFrontendPages = Math.max(
+        1,
+        Math.ceil(results.length / itemsPerPageSelection),
+    );
     const displayedResults = results.slice(
         (frontendPage - 1) * itemsPerPageSelection,
-        frontendPage * itemsPerPageSelection
+        frontendPage * itemsPerPageSelection,
     );
 
+    // Dynamic state trackers for multi-format background export progress modal
     const [isProgressModalOpen, setIsProgressModalOpen] = useState(false);
     const [saveSteps, setSaveSteps] = useState([
-        { id: 'csv', name: 'Експорт CSV', status: 'idle', path: '' },
-        { id: 'json', name: 'Експорт JSON', status: 'idle', path: '' },
-        { id: 'sqlite', name: 'Експорт SQLite3', status: 'idle', path: '' },
-        { id: 'xml', name: 'Експорт XML', status: 'idle', path: '' },
-        { id: 'pdf', name: 'Експорт PDF', status: 'idle', path: '' },
+        { id: 'csv', name: 'Export CSV', status: 'idle', path: '' },
+        { id: 'json', name: 'Export JSON', status: 'idle', path: '' },
+        { id: 'sqlite', name: 'Export SQLite3', status: 'idle', path: '' },
+        { id: 'xml', name: 'Export XML', status: 'idle', path: '' },
+        { id: 'pdf', name: 'Export PDF', status: 'idle', path: '' },
     ]);
 
+    /**
+     * Asynchronously triggers serial exports for all supported document variations.
+     * Iterates dynamically over target steps updating modal status tickers.
+     */
     const handleSaveAllFormats = async () => {
         const tableData = CardService.extractTableData(results);
-        if (!tableData || tableData.length === 0) return alert('❌ Немає активних даних!');
-        
+        if (!tableData || tableData.length === 0)
+            return alert('❌ No operational data selected for export');
+
         setIsProgressModalOpen(true);
-        setSaveSteps((prev) => prev.map((step) => ({ ...step, status: 'pending', path: '' })));
+        setSaveSteps((prev) =>
+            prev.map((step) => ({ ...step, status: 'pending', path: '' })),
+        );
         const formats = ['csv', 'json', 'sqlite', 'xml', 'pdf'];
 
         for (const format of formats) {
-            setSaveSteps((prev) => prev.map((step) => step.id === format ? { ...step, status: 'processing' } : step));
+            setSaveSteps((prev) =>
+                prev.map((step) =>
+                    step.id === format
+                        ? { ...step, status: 'processing' }
+                        : step,
+                ),
+            );
             try {
-                const response = await axios.post(`${backendUrl}/api/save`, { 
-                    format, directory: saveDir, dbSettings, tableName: activeTable 
+                const response = await axios.post(`${backendUrl}/api/save`, {
+                    format,
+                    directory: saveDir,
+                    dbSettings,
+                    tableName: activeTable,
                 });
                 if (response.data.success) {
                     setSaveSteps((prev) =>
-                        prev.map((step) => step.id === format ? { ...step, status: 'success', path: response.data.filePath } : step)
+                        prev.map((step) =>
+                            step.id === format
+                                ? {
+                                      ...step,
+                                      status: 'success',
+                                      path: response.data.filePath,
+                                  }
+                                : step,
+                        ),
                     );
-                } else throw new Error(response.data.error || 'Помилка');
+                } else
+                    throw new Error(
+                        response.data.error || 'Export loop failed',
+                    );
             } catch (err) {
                 setSaveSteps((prev) =>
-                    prev.map((step) => step.id === format ? { ...step, status: 'error', error: err.message } : step)
+                    prev.map((step) =>
+                        step.id === format
+                            ? { ...step, status: 'error', error: err.message }
+                            : step,
+                    ),
                 );
             }
         }
     };
 
+    /**
+     * Mini-component rendering pagination controls and analytical item counters.
+     */
     const PaginationBanner = () =>
         results.length > 0 && (
             <div className="bg-indigo-950/40 border border-indigo-500/30 p-4 rounded-2xl flex flex-wrap justify-between items-center text-sm font-semibold text-indigo-300 shadow-sm gap-4 mb-6">
                 <div className="flex items-center gap-2">
-                    <span>📄 Сторінка скрапера:</span>
+                    <span>📄 Scraper Web Page:</span>
                     <span className="bg-indigo-500/20 px-3 py-1 rounded-md text-indigo-200 border border-indigo-500/30">
-                        {pagination.currentPage} / {pagination.totalPages || '?'}
+                        {pagination.currentPage} /{' '}
+                        {pagination.totalPages || '?'}
                     </span>
                 </div>
                 <div className="flex items-center gap-4">
-                    <span>Відображення:</span>
+                    <span>Local View Layout:</span>
                     <button
-                        onClick={() => setFrontendPage((p) => Math.max(1, p - 1))}
+                        onClick={() =>
+                            setFrontendPage((p) => Math.max(1, p - 1))
+                        }
                         disabled={frontendPage === 1}
                         className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white px-3 py-1 rounded-md transition-colors"
                     >
@@ -251,68 +419,107 @@ function App() {
                         {frontendPage} / {totalFrontendPages}
                     </span>
                     <button
-                        onClick={() => setFrontendPage((p) => Math.min(totalFrontendPages, p + 1))}
-                        disabled={frontendPage === totalFrontendPages || totalFrontendPages === 0}
+                        onClick={() =>
+                            setFrontendPage((p) =>
+                                Math.min(totalFrontendPages, p + 1),
+                            )
+                        }
+                        disabled={
+                            frontendPage === totalFrontendPages ||
+                            totalFrontendPages === 0
+                        }
                         className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 text-white px-3 py-1 rounded-md transition-colors"
                     >
                         ▶
                     </button>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span>📊 Накопичено в таблиці:</span>
+                    <span>📊 Accumulated In Table:</span>
                     <span className="bg-emerald-500/20 px-3 py-1 rounded-md text-emerald-300 border border-emerald-500/30">
-                        {results.length} шт.
+                        {results.length} units
                     </span>
                 </div>
             </div>
         );
 
+    // Spreadsheet display route view fallback
     if (isTableRoute) {
         return (
             <div className="min-h-screen bg-slate-950 text-slate-100 p-4 font-sans flex flex-col">
-                <h1 className="text-xl font-bold text-cyan-400 text-center mb-4">Таблиця виводу</h1>
+                <h1 className="text-xl font-bold text-cyan-400 text-center mb-4">
+                    Data Table Output
+                </h1>
                 <div className="flex items-center justify-center gap-2 flex-wrap mb-4">
-                    <button onClick={handleSaveAllFormats} className="bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 text-white font-semibold text-xs py-2 px-4 rounded-xl shadow-lg transition-all">⚡ Збереження в усі формати</button>
-                    {['csv', 'json', 'sqlite', 'xml', 'pdf'].map(fmt => (
-                        <button key={fmt} onClick={() => handleSaveData(fmt)} className="bg-slate-900 border border-slate-800 text-slate-300 text-[11px] font-bold py-1.5 px-3 rounded-lg uppercase hover:bg-slate-800">{fmt}</button>
+                    <button
+                        onClick={handleSaveAllFormats}
+                        className="bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 text-white font-semibold text-xs py-2 px-4 rounded-xl shadow-lg transition-all"
+                    >
+                        ⚡ Save All Formats
+                    </button>
+                    {['csv', 'json', 'sqlite', 'xml', 'pdf'].map((fmt) => (
+                        <button
+                            key={fmt}
+                            onClick={() => handleSaveData(fmt)}
+                            className="bg-slate-900 border border-slate-800 text-slate-300 text-[11px] font-bold py-1.5 px-3 rounded-lg uppercase hover:bg-slate-800"
+                        >
+                            {fmt}
+                        </button>
                     ))}
                 </div>
 
                 <DataTable
                     results={results}
                     onDeleteRow={(id) => toggleCardCheck(id)}
-                    onDeleteColumn={(p) => setResults((prev) => CardService.deleteColumn(prev, p))}
-                    onDeleteCell={(id, p) => setResults((prev) => CardService.deleteCell(prev, id, p))}
+                    onDeleteColumn={(p) =>
+                        setResults((prev) => CardService.deleteColumn(prev, p))
+                    }
+                    onDeleteCell={(id, p) =>
+                        setResults((prev) =>
+                            CardService.deleteCell(prev, id, p),
+                        )
+                    }
                     itemsPerPageSelection={itemsPerPageSelection}
                     onClose={() => setIsTableRoute(false)}
                 />
 
-                <ProgressModal isOpen={isProgressModalOpen} onClose={() => setIsProgressModalOpen(false)} saveSteps={saveSteps} />
+                <ProgressModal
+                    isOpen={isProgressModalOpen}
+                    onClose={() => setIsProgressModalOpen(false)}
+                    saveSteps={saveSteps}
+                />
             </div>
         );
     }
 
+    // Main Workspace Layout
     return (
         <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 font-sans selection:bg-cyan-500 selection:text-slate-900">
-            <div className="max-w-[1600px] mx-auto space-y-6">
+            <div className="max-w-400 mx-auto space-y-6">
+                {/* Search & Main Configuration Bar */}
                 <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl shadow-2xl space-y-4">
-                    <h1 className="text-2xl sm:text-3xl font-extrabold bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">eBay Structural Skeleton</h1>
+                    <h1 className="text-2xl sm:text-3xl font-extrabold bg-linear-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
+                        eBay Structural Skeleton
+                    </h1>
                     <div className="flex gap-3">
                         <input
                             type="text"
                             className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-cyan-500/50 outline-none text-slate-200 placeholder-slate-600"
-                            placeholder="Введіть товар..."
+                            placeholder="Enter product..."
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleScrape('search')}
+                            onKeyDown={(e) =>
+                                e.key === 'Enter' && handleScrape('search')
+                            }
                             disabled={loading}
                         />
                         <button
                             onClick={() => handleScrape('search')}
                             disabled={loading}
-                            className="bg-gradient-to-r from-cyan-500 to-indigo-600 text-slate-950 font-bold px-6 py-3 rounded-xl shadow-lg active:scale-95 disabled:opacity-50 shrink-0"
+                            className="bg-linear-to-r from-cyan-500 to-indigo-600 text-slate-950 font-bold px-6 py-3 rounded-xl shadow-lg active:scale-95 disabled:opacity-50 shrink-0"
                         >
-                            {loading && !autoScraping ? 'Сканування...' : 'Новий Пошук'}
+                            {loading && !autoScraping
+                                ? 'Scanning...'
+                                : 'New Search'}
                         </button>
                     </div>
 
@@ -321,14 +528,19 @@ function App() {
                             <input
                                 type="checkbox"
                                 checked={saveDebugHtml}
-                                onChange={(e) => setSaveDebugHtml(e.target.checked)}
+                                onChange={(e) =>
+                                    setSaveDebugHtml(e.target.checked)
+                                }
                                 className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
                             />
-                            <span>Зберігати HTML сторінок для відлагодження</span>
+                            <span>
+                                Save page HTML for debugging
+                            </span>
                         </label>
                     </div>
                 </div>
 
+                {/* Dashboard Split View */}
                 <div className="flex flex-col lg:flex-row gap-6 items-start">
                     <Sidebar
                         saveDir={saveDir}
@@ -351,12 +563,21 @@ function App() {
                         setDbSettings={setDbSettings}
                     />
 
+                    {/* Content Section & Product List Feed */}
                     <main className="flex-1 w-full min-w-0">
                         {autoScraping && (
                             <div className="bg-amber-950/40 border border-amber-500/30 p-4 rounded-2xl flex items-center justify-between text-sm font-semibold text-amber-300 shadow-sm gap-4 mb-4 animate-pulse">
                                 <div className="flex items-center gap-3">
-                                    <span className="animate-spin inline-block">⏳</span>
-                                    <span>Авто-скрапінг: обробка сторінки {pagination.currentPage + 1} / {maxScrapePages || pagination.totalPages}...</span>
+                                    <span className="animate-spin inline-block">
+                                        ⏳
+                                    </span>
+                                    <span>
+                                        Auto-scraping: processing page{' '}
+                                        {pagination.currentPage + 1} /{' '}
+                                        {maxScrapePages ||
+                                            pagination.totalPages}
+                                        ...
+                                    </span>
                                 </div>
                                 <button
                                     onClick={() => {
@@ -365,7 +586,7 @@ function App() {
                                     }}
                                     className="bg-red-600 hover:bg-red-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors"
                                 >
-                                    ⏹ Зупинити
+                                    ⏹ Stop
                                 </button>
                             </div>
                         )}
@@ -377,7 +598,9 @@ function App() {
                                     key={card.id}
                                     card={card}
                                     toggleCardCheck={toggleCardCheck}
-                                    toggleUniquenessCheck={toggleUniquenessCheck}
+                                    toggleUniquenessCheck={
+                                        toggleUniquenessCheck
+                                    }
                                     handleDepthChange={handleDepthChange}
                                     toggleCleanText={toggleCleanText}
                                     toggleLinkSave={toggleLinkSave}
@@ -387,7 +610,7 @@ function App() {
 
                             {results.length === 0 && !loading && (
                                 <div className="text-center text-slate-500 py-20 bg-slate-900/20 rounded-3xl border border-dashed border-slate-800">
-                                    ✨ Панель порожня. Зробіть пошук.
+                                    ✨ Dashboard is empty. Run a search.
                                 </div>
                             )}
                         </div>
@@ -398,7 +621,11 @@ function App() {
                     </main>
                 </div>
             </div>
-            <ProgressModal isOpen={isProgressModalOpen} onClose={() => setIsProgressModalOpen(false)} saveSteps={saveSteps} />
+            <ProgressModal
+                isOpen={isProgressModalOpen}
+                onClose={() => setIsProgressModalOpen(false)}
+                saveSteps={saveSteps}
+            />
         </div>
     );
 }

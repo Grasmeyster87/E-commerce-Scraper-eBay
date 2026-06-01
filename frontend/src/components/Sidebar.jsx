@@ -1,22 +1,28 @@
-import React from 'react';
-
+/**
+ * Sidebar Component
+ * Central control panel housing configuration modules for scraping operations, 
+ * data persistence routes, output file formats, and active dataset management.
+ *
+ * @param {Object} props - Aggregated props managing global state controls from App.jsx.
+ */
 export default function Sidebar({
     saveDir, setSaveDir, openTableInNewTab, results,
     handleSaveAllFormats, handleSaveData, handleClear,
     pagination, scrapeAllPages, setScrapeAllPages, onNextPage, loading,
     maxScrapePages, setMaxScrapePages, itemsPerPageSelection, setItemsPerPageSelection,
-    dbSettings, setDbSettings // ДОДАНО: Передаємо налаштування БД
+    dbSettings, setDbSettings 
 }) {
     return (
         <aside className="w-full lg:w-64 shrink-0 lg:sticky lg:top-6 space-y-4">
             
-            {/* БЛОК ПАГІНАЦІЇ ТА НАВІГАЦІЇ */}
+            {/* --- PAGINATION & AUTOMATION MODULE --- */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-xl space-y-4">
                 <h3 className="text-xs font-bold text-slate-400 tracking-wider uppercase px-1">
-                    Пагінація (Сторінки)
+                    Job Automation
                 </h3>
                 
                 <div className="space-y-3 px-1">
+                    {/* Auto-Scrape Toggle */}
                     <label className="flex items-center gap-3 cursor-pointer group bg-slate-950/50 p-2 rounded-lg border border-slate-800">
                         <input 
                             type="checkbox" 
@@ -25,12 +31,13 @@ export default function Sidebar({
                             className="w-4 h-4 accent-indigo-500 rounded cursor-pointer" 
                         />
                         <span className="text-[11px] font-bold text-slate-300">
-                            Авто-скрапінг всіх сторінок
+                            Continuous Deep Scraping
                         </span>
                     </label>
 
+                    {/* Pagination Limits */}
                     <div className="flex justify-between items-center bg-slate-950/50 p-2 rounded-lg border border-slate-800">
-                        <span className="text-[11px] text-slate-400 font-bold">Карток на сторінці:</span>
+                        <span className="text-[11px] text-slate-400 font-bold">Items Per Target Page:</span>
                         <select 
                             className="bg-slate-900 text-cyan-400 font-mono text-xs border border-slate-700 rounded px-2 py-1 outline-none cursor-pointer"
                             value={itemsPerPageSelection}
@@ -43,8 +50,8 @@ export default function Sidebar({
                     </div>
 
                     <div className="flex justify-between items-center bg-slate-950/50 p-2 rounded-lg border border-slate-800">
-                        <span className="text-[11px] text-slate-400 font-bold" title="Скільки сторінок парсити в авторежимі. 0 = без обмежень">
-                            Макс. авто-сторінок:
+                        <span className="text-[11px] text-slate-400 font-bold" title="Caps automated requests. 0 implies unlimited execution.">
+                            Execution Ceiling:
                         </span>
                         <input 
                             type="number" 
@@ -55,21 +62,22 @@ export default function Sidebar({
                         />
                     </div>
 
+                    {/* Next Operation Trigger */}
                     <button
                         onClick={onNextPage}
                         disabled={loading || pagination.currentPage >= pagination.totalPages}
-                        className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-lg text-xs flex justify-center items-center gap-2"
+                        className="w-full bg-linear-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-500 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-lg text-xs flex justify-center items-center gap-2"
                     >
-                        {loading ? 'Завантаження...' : '➡️ Завантажити наступну'}
+                        {loading ? 'Initializing...' : '➡️ Dispatch Next Request'}
                     </button>
                 </div>
             </div>
 
-            {/* БЛОК КАТАЛОГУ ТА ЕКСПОРТУ */}
+            {/* --- IO & EXPORT PIPELINE MODULE --- */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center justify-between gap-4">
                 <div className="flex-1 w-full">
                     <label className="block text-[10px] text-slate-500 font-mono mb-1">
-                        ШЛЯХ ДЛЯ ЗБЕРЕЖЕННЯ:
+                        EXPORT DIRECTORY PATH:
                     </label>
                     <div className="flex gap-2">
                         <input
@@ -85,24 +93,27 @@ export default function Sidebar({
 
             <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-4 rounded-2xl shadow-xl space-y-4">
                 <div className="space-y-2 pt-1">
+                    
+                    {/* Visualizer Router Trigger */}
                     <button
                         onClick={openTableInNewTab} 
                         disabled={results.length === 0}
                         className="w-full text-left text-xs font-bold px-4 py-3 rounded-xl border transition-all duration-300 flex items-center justify-between disabled:opacity-40 disabled:pointer-events-none bg-indigo-500 text-white border-indigo-400 shadow-lg shadow-indigo-500/20 hover:bg-indigo-400"
                     >
-                        <span>📊 Відкрити таблицю</span>
+                        <span>📊 Output Visualizer</span>
                         <span className="bg-slate-900/40 text-[10px] text-white px-1.5 py-0.5 rounded-md border border-indigo-300/30">
                             {results.filter((c) => c.cardChecked).length}
                         </span>
                     </button>
 
+                    {/* Formats Gateway */}
                     <div className="border border-slate-800/80 p-2 rounded-xl bg-slate-950/40 space-y-2">
-                        <span className="text-[10px] text-slate-500 uppercase tracking-wider block px-1">Експорт Даних:</span>
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider block px-1">File Dump Protocols:</span>
                         <button
                             onClick={handleSaveAllFormats}
-                            className="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 text-white font-semibold text-xs py-2.5 px-4 rounded-xl shadow-lg transition-all"
+                            className="w-full bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 text-white font-semibold text-xs py-2.5 px-4 rounded-xl shadow-lg transition-all"
                         >
-                            ⚡ Зберегти в усі формати
+                            ⚡ Process All Formats
                         </button>
                         <div className="flex flex-wrap gap-1.5 pt-2">
                             <button onClick={() => handleSaveData('csv')} className="flex-1 min-w-[30%] bg-emerald-500/10 text-emerald-400 text-[11px] font-bold py-1.5 rounded-lg border border-emerald-900/50 hover:bg-emerald-500/20">CSV</button>
@@ -113,21 +124,22 @@ export default function Sidebar({
                         </div>
                     </div>
 
+                    {/* Reset State Tool */}
                     {results.length > 0 && (
                         <button
                             onClick={handleClear}
                             className="w-full text-left text-xs font-medium text-red-400 hover:text-red-300 border border-slate-800 hover:bg-red-950/20 px-4 py-3 rounded-xl transition-colors mt-2"
                         >
-                            🗑 Очистити робочі дані
+                            🗑 Purge Active Dataset
                         </button>
                     )}
                 </div>
             </div>
 
-            {/* НОВИЙ БЛОК: НАЛАШТУВАННЯ SQLITE3 */}
+            {/* --- RELATIONAL DB (SQLITE3) CONFIGURATION --- */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl shadow-xl space-y-4">
                 <h3 className="text-xs font-bold text-cyan-400 tracking-wider uppercase px-1 flex items-center gap-2">
-                    🗄️ База даних (SQLite3)
+                    🗄️ Database Context (SQLite3)
                 </h3>
                 
                 <div className="space-y-3 px-1 text-[11px] text-slate-300">
@@ -138,7 +150,7 @@ export default function Sidebar({
                             onChange={(e) => setDbSettings(p => ({...p, saveToDefault: e.target.checked}))}
                             className="w-4 h-4 accent-cyan-500 rounded" 
                         />
-                        <span>Зберігати в БД за замовчуванням (кожен запит в нову таблицю)</span>
+                        <span>Enable logging to primary table per session</span>
                     </label>
 
                     <label className="flex items-center gap-3 cursor-pointer group hover:text-white">
@@ -148,7 +160,7 @@ export default function Sidebar({
                             onChange={(e) => setDbSettings(p => ({...p, loadLatestOnStart: e.target.checked}))}
                             className="w-4 h-4 accent-cyan-500 rounded" 
                         />
-                        <span>Вивід останніх результатів при завантаженні</span>
+                        <span>Mount latest database state on initialization</span>
                     </label>
 
                     <div className="border-t border-slate-800 my-2 pt-2">
@@ -159,7 +171,7 @@ export default function Sidebar({
                                 onChange={(e) => setDbSettings(p => ({...p, saveToCustom: e.target.checked}))}
                                 className="w-4 h-4 accent-indigo-500 rounded" 
                             />
-                            <span>Окреме збереження бази даних</span>
+                            <span>Override persistent storage path</span>
                         </label>
                         
                         {dbSettings.saveToCustom && (
@@ -167,14 +179,14 @@ export default function Sidebar({
                                 type="text"
                                 value={dbSettings.customPath}
                                 onChange={(e) => setDbSettings(p => ({...p, customPath: e.target.value}))}
-                                placeholder="Шлях: D:/my_databases/..."
+                                placeholder="E.g., D:/my_databases/..."
                                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 font-mono text-[10px] focus:border-indigo-500 outline-none"
                             />
                         )}
                     </div>
 
                     <div className="bg-slate-950/50 p-2 rounded-lg border border-slate-800 space-y-2">
-                        <span className="font-bold text-slate-400">Джерело виводу (Читання):</span>
+                        <span className="font-bold text-slate-400">Target Read Source:</span>
                         <label className="flex items-center gap-2 cursor-pointer">
                             <input 
                                 type="radio" name="dbSource" value="default"
@@ -182,7 +194,7 @@ export default function Sidebar({
                                 onChange={(e) => setDbSettings(p => ({...p, source: e.target.value}))}
                                 className="accent-cyan-500"
                             />
-                            <span>Дефолтна (default)</span>
+                            <span>Default DB</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                             <input 
@@ -192,7 +204,7 @@ export default function Sidebar({
                                 onChange={(e) => setDbSettings(p => ({...p, source: e.target.value}))}
                                 className="accent-indigo-500"
                             />
-                            <span className={!dbSettings.customPath ? 'opacity-50' : ''}>Власний шлях</span>
+                            <span className={!dbSettings.customPath ? 'opacity-50' : ''}>Custom Volume</span>
                         </label>
                     </div>
                 </div>

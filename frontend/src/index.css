@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-/* Завжди показувати стрілки у input[type="number"] */
+/* Always display spinner arrows for input[type="number"] */
 /* Chrome, Edge, Safari */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
@@ -13,7 +13,7 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
-/* Firefox — кастомні стрілки через обгортку неможливі, тому повертаємо стандартні */
+/* Firefox — native spinner arrows (custom arrows via wrapper are not supported) */
 @-moz-document url-prefix() {
   input[type="number"] {
     -moz-appearance: spinner-textfield;
