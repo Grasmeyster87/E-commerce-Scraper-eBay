@@ -7,8 +7,18 @@ import PDFDocument from 'pdfkit';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * File I/O Management and Format Export Utility Service.
+ * Implements low-level stream compiling routines translating matrix tables into specialized serialization types.
+ */
 export class FileHandler {
-    // Генерація назви: YYYY-MM-DD_HH-mm-ss
+    /**
+     * Generates a standardized sortable ISO date-time string token for data exports.
+     * Format template: YYYY-MM-DD_HH-mm-ss
+     * * @static
+     * @method getFormattedTimestamp
+     * @returns {string} Formatted timestamp string token.
+     */
     static getFormattedTimestamp() {
         const d = new Date();
         const pad = (n) => String(n).padStart(2, '0');
@@ -17,6 +27,14 @@ export class FileHandler {
         return `${date}_${time}`;
     }
 
+    /**
+     * Resolves absolute file system locations, verifying or recursively establishing directory roots.
+     * * @static
+     * @method getSavePath
+     * @param {string|null} customDir - Explicit user folder destination override string.
+     * @param {string} filename - Targeted file title token destination.
+     * @returns {string} Fully qualified destination file location path.
+     */
     static getSavePath(customDir, filename) {
         const baseDir = customDir
             ? path.resolve(customDir)
@@ -27,6 +45,15 @@ export class FileHandler {
         return path.join(baseDir, filename);
     }
 
+    /**
+     * Serializes relational dataset arrays into standard Comma-Separated Values text structures.
+     * Sanitizes text strings against format breaks via string quotation and delimiter escape logic.
+     * * @static
+     * @method saveToCSV
+     * @param {Object[]} data - Flattened dictionary record matrix rows.
+     * @param {string|null} [customDir=null] - File destination folder path.
+     * @returns {Object} System operational confirmation status data payload.
+     */
     static saveToCSV(data, customDir = null) {
         if (!data || data.length === 0)
             return { success: false, error: 'No data to save' };
@@ -44,6 +71,14 @@ export class FileHandler {
         return { success: true, filePath };
     }
 
+    /**
+     * Serializes arrays into standardized pretty-printed JSON data structures.
+     * * @static
+     * @method saveToJSON
+     * @param {Object[]} data - Flat parsing collection matrices.
+     * @param {string|null} [customDir=null] - Destination destination path guidelines.
+     * @returns {Object} Execution verification receipts.
+     */
     static saveToJSON(data, customDir = null) {
         if (!data || data.length === 0)
             return { success: false, error: 'No data to save' };
@@ -53,6 +88,15 @@ export class FileHandler {
         return { success: true, filePath };
     }
 
+    /**
+     * Asynchronously generates isolated SQLite binary database schemas out of raw extraction data arrays.
+     * Dynamically constructs sanitized initialization query templates mapping data rows securely.
+     * * @static
+     * @method saveToSQLite
+     * @param {Object[]} data - Relational row matrices.
+     * @param {string|null} [customDir=null] - Custom disk location directories.
+     * @returns {Promise<Object>} Execution confirmations containing final file routing tracking strings.
+     */
     static async saveToSQLite(data, customDir = null) {
         return new Promise(async (resolve, reject) => {
             if (!data || data.length === 0)
@@ -63,7 +107,11 @@ export class FileHandler {
             try {
                 sqlite3 = (await import('sqlite3')).default.verbose();
             } catch (error) {
-                return reject(new Error('Не встановлено модуль sqlite3.'));
+                return reject(
+                    new Error(
+                        'Required dependency package module "sqlite3" is missing.',
+                    ),
+                );
             }
 
             const filePath = this.getSavePath(customDir, filename);
@@ -95,7 +143,15 @@ export class FileHandler {
         });
     }
 
-    // НОВЕ: Експорт у XML
+    /**
+     * Compiles relational array datasets into valid XML document formats.
+     * Strips whitespace and layout paths into safe tag elements, escaping special text entities.
+     * * @static
+     * @method saveToXML
+     * @param {Object[]} data - Two-dimensional flat rows mapping dataset items.
+     * @param {string|null} [customDir=null] - User target workspace path context.
+     * @returns {Object} System operational execution summary reports.
+     */
     static saveToXML(data, customDir = null) {
         if (!data || data.length === 0)
             return { success: false, error: 'No data to save' };
@@ -106,7 +162,7 @@ export class FileHandler {
         data.forEach((row, idx) => {
             xml += `  <item index="${idx + 1}">\n`;
             for (const key in row) {
-                // XML-теги не можуть містити пробіли та спецсимволи (як у ваших семантичних шляхах)
+                // Sanitize complex semantic layout paths to align with strict W3C naming specifications
                 const safeTag = key
                     .replace(/[^a-zA-Z0-9]/g, '_')
                     .replace(/^([0-9])/, 'n_$1');
@@ -124,17 +180,25 @@ export class FileHandler {
         return { success: true, filePath };
     }
 
-    // НОВЕ: Експорт у PDF через Puppeteer
+    /**
+     * Encapsulates flat tabular matrix datasets into multi-page printable PDF documents via PDFKit.
+     * Sets page rendering bounds, handles content overflow tracking, and implements dynamic font loading.
+     * * @static
+     * @method saveToPDF
+     * @param {Object[]} data - Tabular row structures representing targeted extraction metrics.
+     * @param {string|null} [customDir=null] - Custom data destination paths.
+     * @returns {Promise<Object>} Execution verification metadata detailing file storage addresses.
+     */
     static async saveToPDF(data, customDir = null) {
         if (!data || data.length === 0)
-            return { success: false, error: 'Немає даних для збереження' };
+            return { success: false, error: 'No data to save' };
 
         const filename = `results_${this.getFormattedTimestamp()}.pdf`;
         const filePath = this.getSavePath(customDir, filename);
 
         return new Promise((resolve, reject) => {
             try {
-                // Створюємо альбомну орієнтацію (landscape), оскільки в таблиці багато колонок
+                // Initialize a landscape canvas page tracking configuration to account for dense multi-column layouts
                 const doc = new PDFDocument({
                     layout: 'landscape',
                     margin: 30,
@@ -142,33 +206,36 @@ export class FileHandler {
                 const stream = fs.createWriteStream(filePath);
                 doc.pipe(stream);
 
-                // Підключаємо шрифт Arial для повної підтримки української мови
+                // Load Arial system typography to establish comprehensive Unicode and Cyrillic script encoding support
                 const windowsFontPath = 'C:\\Windows\\Fonts\\arial.ttf';
                 if (fs.existsSync(windowsFontPath)) {
                     doc.font(windowsFontPath);
                 } else {
                     console.warn(
-                        '⚠️ Системний шрифт Arial не знайдено. Можливі проблеми з відображенням кирилиці.',
+                        '⚠️ Core system typography Arial not found. Fallbacks may disrupt Unicode rendering processes.',
                     );
                 }
 
-                // Заголовок документа
+                // Compile and balance visual brand positioning title layout configurations
                 doc.fontSize(18)
                     .fillColor('#4f46e5')
-                    .text('Звіт скрапінгу eBay (Сформована таблиця)', {
-                        align: 'center',
-                    });
+                    .text(
+                        'eBay Scraping Report (Structured Relational Dataset)',
+                        {
+                            align: 'center',
+                        },
+                    );
                 doc.fontSize(10)
                     .fillColor('#64748b')
-                    .text(`Згенеровано: ${new Date().toLocaleString()}`, {
+                    .text(`Generated on: ${new Date().toLocaleString()}`, {
                         align: 'center',
                     });
                 doc.moveDown(2);
 
-                // Витягуємо назви колонок (динамічні ключі)
+                // Extract operational attribute tracking keys
                 const headers = Object.keys(data[0]);
 
-                // Структуроване відображення кожного товару у вигляді картки-рядка
+                // Enact loop routines laying down structural information nodes row-by-row
                 data.forEach((row, idx) => {
                     doc.fontSize(12)
                         .fillColor('#1e1b4b')
@@ -189,14 +256,14 @@ export class FileHandler {
                     });
 
                     doc.moveDown(0.8);
-                    // Малюємо тонку лінію-розділювач між товарами
+                    // Render thin structural layout lines separating sequence elements cleanly
                     doc.moveTo(30, doc.y)
                         .lineTo(760, doc.y)
                         .strokeColor('#e2e8f0')
                         .stroke();
                     doc.moveDown(1);
 
-                    // Перевірка на ліміт висоти сторінки для перенесення
+                    // Track layout vertical height configurations to control automatic page break triggers
                     if (doc.y > 520) {
                         doc.addPage();
                     }
@@ -212,7 +279,16 @@ export class FileHandler {
         });
     }
 
-    // ОНОВЛЕНО: Тепер скріншот не є обов'язковим, а дата додається в назву автоматично
+    /**
+     * Stores runtime debug information dumps to disk storage layers.
+     * Saves raw source HTML structures along with optional graphical screen image buffer captures.
+     * * @static
+     * @method saveDebugInfo
+     * @param {string} html - Raw web page HTML string text source.
+     * @param {Buffer|null} [screenshotBuffer=null] - Optional binary screenshot image buffer.
+     * @param {string} [prefix='debug'] - Custom identification categorization string prefix.
+     * @returns {string} Disk absolute route location file path tracking information.
+     */
     static saveDebugInfo(html, screenshotBuffer = null, prefix = 'debug') {
         const dir = path.join(__dirname, '../../data/debug');
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -226,6 +302,6 @@ export class FileHandler {
             fs.writeFileSync(screenshotPath, screenshotBuffer);
         }
 
-        return htmlPath; // Повертаємо шлях, щоб вивести в консоль
+        return htmlPath; 
     }
 }

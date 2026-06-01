@@ -7,7 +7,20 @@ import { FileHandler } from './utils/fileHandler.js';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function runEbayScraper(searchQuery, saveDebugHtml = false, action = 'search', itemsPerPage = 60) {
+/**
+ * Orchestrates Puppeteer workflow, active Chrome connection hooks, and navigational steps.
+ * * @param {string} searchQuery - The user search query string
+ * @param {boolean} [saveDebugHtml=false] - Flag to save raw HTML for debugging
+ * @param {string} [action='search'] - Core navigational action ('search' | 'next')
+ * @param {number} [itemsPerPage=60] - Page size limitation configuration
+ * @returns {Promise<Object>} Object containing extracted dataset and pagination state
+ */
+export async function runEbayScraper(
+    searchQuery,
+    saveDebugHtml = false,
+    action = 'search',
+    itemsPerPage = 60,
+) {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
     const scriptPath = path.join(__dirname, 'launch_chrome.bat');
@@ -15,16 +28,24 @@ export async function runEbayScraper(searchQuery, saveDebugHtml = false, action 
     let browser = null;
 
     try {
-        console.log('🔍 Перевірка наявності активної сесії Chrome...');
-        browser = await puppeteer.connect({
-            browserURL: 'http://127.0.0.1:9222',
-            defaultViewport: null
-        }).catch(() => null);
+        console.log('🔍 Checking for an active Chrome debugging session...');
+        browser = await puppeteer
+            .connect({
+                browserURL: 'http://127.0.0.1:9222',
+                defaultViewport: null,
+            })
+            .catch(() => null);
 
         if (!browser) {
-            console.log('🌐 Chrome не знайдено на порту 9222. Запускаємо новий екземпляр...');
+            console.log(
+                '🌐 Chrome not detected on port 9222. Initializing new runtime instance...',
+            );
             exec(`"${scriptPath}"`, (err) => {
-                if (err) console.error('❌ Не вдалося запустити Chrome:', err.message);
+                if (err)
+                    console.error(
+                        '❌ Failed to launch Chrome execution script:',
+                        err.message,
+                    );
             });
 
             for (let attempt = 1; attempt <= 7; attempt++) {
@@ -32,11 +53,14 @@ export async function runEbayScraper(searchQuery, saveDebugHtml = false, action 
                     await delay(1000);
                     browser = await puppeteer.connect({
                         browserURL: 'http://127.0.0.1:9222',
-                        defaultViewport: null
+                        defaultViewport: null,
                     });
                     break;
                 } catch (connectError) {
-                    if (attempt === 7) throw new Error('Chrome запускається занадто довго.');
+                    if (attempt === 7)
+                        throw new Error(
+                            'Chrome took too long to launch and bind port 9222.',
+                        );
                 }
             }
         }
@@ -45,17 +69,28 @@ export async function runEbayScraper(searchQuery, saveDebugHtml = false, action 
         const page = pages[0];
         const scraper = new EbayScraper(page);
 
-        // ЛОГІКА НАВІГАЦІЇ
+        // NAVIGATION LOGIC
         if (action === 'search') {
             await scraper.search(searchQuery, itemsPerPage);
-            await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 }).catch(() => {});
+            await page
+                .waitForNavigation({
+                    waitUntil: 'networkidle2',
+                    timeout: 10000,
+                })
+                .catch(() => {});
         } else if (action === 'next') {
             const clicked = await scraper.goToNextPageByClick();
             if (!clicked) {
-                throw new Error('Досягнуто останньої сторінки або кнопку не знайдено.');
-            }
-            // Чекаємо, поки нова сторінка завантажиться після кліку
-            await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 15000 }).catch(() => {});
+                throw new Error(
+                    'Last page reached or structural next button not found.',
+                );
+            }            
+            await page
+                .waitForNavigation({
+                    waitUntil: 'networkidle2',
+                    timeout: 15000,
+                })
+                .catch(() => {});
         }
 
         if (saveDebugHtml) {
@@ -64,10 +99,9 @@ export async function runEbayScraper(searchQuery, saveDebugHtml = false, action 
         }
 
         const data = await scraper.scrapePage();
-        const pagination = await scraper.getPaginationInfo(); // Збираємо дані про сторінки
+        const pagination = await scraper.getPaginationInfo(); 
 
         return { data, pagination };
-
     } catch (error) {
         console.error('❌ Помилка в логіці скрапера:', error.message);
         throw error;

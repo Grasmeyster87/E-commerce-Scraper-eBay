@@ -1,6 +1,11 @@
+/**
+ * Service handling data formatting, column mapping, and architectural processing.
+ */
 export class CardService {
     /**
-     * Первинна обробка масиву карток з бекенду та генерація семантичних шляхів
+     * Primary data mapping, structure parsing, and semantic path mapping generation.
+     * * @param {Object[]} rawData - Array of parsed raw cards from structural engine
+     * @returns {Object[]} Processed and normalized structural cards array
      */
     static processRawData(rawData) {
         return rawData.map((card) => {
@@ -11,8 +16,8 @@ export class CardService {
 
             let currentPathTracker = [];
             let originalPathTracker = [];
-            
-            // Лічильник для унікальності однакових шляхів в межах однієї картки
+
+            // Counter tracking unique instances of duplicate semantic nodes within a single card
             let cleanPathCounters = {};
 
             const linesWithPaths = card.lines.map((line) => {
@@ -22,13 +27,13 @@ export class CardService {
                     (typeof line.text === 'string' &&
                         line.text.trim().startsWith('<'));
 
-                // Оригінальний шлях для відображення при наведенні (title)
+                // Original path configuration used for mouse hover annotations (title attr)
                 const htmlTagsPath = originalPathTracker
                     .slice(0, depth)
                     .filter(Boolean)
                     .join(' > ');
 
-                // Очищений шлях для групування в стовпці (видаляємо volatile класи типу bold, primary)
+                // Normalized semantic path mapping for unified column groups (filters design tokens like bold/primary)
                 const cleanSemanticPath = currentPathTracker
                     .slice(0, depth)
                     .filter(Boolean)
@@ -36,10 +41,16 @@ export class CardService {
 
                 if (isHtmlTag) {
                     originalPathTracker[depth] = line.text.trim();
-                    originalPathTracker = originalPathTracker.slice(0, depth + 1);
+                    originalPathTracker = originalPathTracker.slice(
+                        0,
+                        depth + 1,
+                    );
 
                     let cleanTagStr = line.text
-                        .replace(/\b(bold|large-\d|large|small|default|primary|secondary|negative|positive|regular|italic)\b/g, '')
+                        .replace(
+                            /\b(bold|large-\d|large|small|default|primary|secondary|negative|positive|regular|italic)\b/g,
+                            '',
+                        )
                         .replace(/\s+/g, ' ')
                         .replace(/ class="\s*"/, '')
                         .replace(/ class="([^"]*?)\s+"/g, ' class="$1"')
@@ -53,25 +64,34 @@ export class CardService {
                 if (isHtmlTag) {
                     finalSemanticPath = cleanSemanticPath || null;
                 } else {
-                    // Для текстових вузлів визначаємо до якого блоку вони належать
+                    // For text nodes, determine structural target block allocation based on contextual DOM layout indicators.                    
                     let bIndex = 99;
                     for (let i = 1; i <= depth; i++) {
                         const tag = originalPathTracker[i];
                         if (tag) {
-                            if (tag.includes('__header')) { bIndex = 1; break; }
-                            if (tag.includes('__attributes')) { bIndex = 2; break; }
-                            if (tag.includes('__footer')) { bIndex = 3; break; }
+                            if (tag.includes('__header')) {
+                                bIndex = 1;
+                                break;
+                            }
+                            if (tag.includes('__attributes')) {
+                                bIndex = 2;
+                                break;
+                            }
+                            if (tag.includes('__footer')) {
+                                bIndex = 3;
+                                break;
+                            }
                         }
                     }
-                    
+
                     let baseSemanticPath = `B${bIndex}_${cleanSemanticPath}`;
-                    
+
                     if (!cleanPathCounters[baseSemanticPath]) {
                         cleanPathCounters[baseSemanticPath] = 0;
                     }
                     cleanPathCounters[baseSemanticPath]++;
-                    
-                    // Додаємо індекс входження, щоб уникнути колапсу однакових тегів (наприклад, двох span в одному div)
+
+                    // Append occurrence index to prevent collision/collapse of identical adjacent structures (e.g., matching spans inside a single block)
                     finalSemanticPath = `${baseSemanticPath}_[${cleanPathCounters[baseSemanticPath]}]`;
                 }
 
@@ -79,7 +99,7 @@ export class CardService {
                     ...line,
                     isHtmlTag,
                     semanticPath: finalSemanticPath,
-                    htmlTagsPath: htmlTagsPath || null, // Зберігаємо для відображення при наведенні
+                    htmlTagsPath: htmlTagsPath || null, // Persist raw telemetry path for UI-level hover states
                 };
             });
 
@@ -97,7 +117,11 @@ export class CardService {
     }
 
     /**
-     * Перемикання збереження лінків з урахуванням прапорця Унікальності
+     * Toggles URL or media resource target persistence, applying cascading updates based on uniqueness syncing.
+     * @param {Object[]} results - The currently loaded structural dataset collection
+     * @param {string|number} cardId - Unique target identifier for the primary card item
+     * @param {string} field - Target property identifier to toggle (e.g., 'saveCardLink' | 'saveImgLink')
+     * @returns {Object[]} The mutated data sequence containing synchronized target state modifications
      */
     static toggleLinkSave(results, cardId, field) {
         const originCard = results.find((c) => c.id === cardId);
@@ -115,7 +139,10 @@ export class CardService {
     }
 
     /**
-     * Перемикання режиму "Показати Картку" з урахуванням прапорця Унікальності
+     * Toggles raw textual parsing rendering modes across data layouts with respect to global structural uniqueness.
+     * @param {Object[]} results - Collection representing the managed global state matrices
+     * @param {string|number} cardId - Unique identifier for the context execution root
+     * @returns {Object[]} Updated object collection with modified visualization layers
      */
     static toggleCleanText(results, cardId) {
         const originCard = results.find((c) => c.id === cardId);
@@ -133,7 +160,11 @@ export class CardService {
     }
 
     /**
-     * Зміна лічильника глибини з урахуванням лімітів та унікальності
+     * Modifies rendering threshold offsets while safely clamping bounded indices and updating global nodes.
+     * @param {Object[]} results - Collection containing global architectural parsing models
+     * @param {string|number} cardId - Context target locator key
+     * @param {string|number} newValue - Evaluated numeric value denoting technical parser parsing depth boundaries
+     * @returns {Object[]} Regulated results array bounded safely within architectural metrics
      */
     static handleDepthChange(results, cardId, newValue) {
         const originCard = results.find((c) => c.id === cardId);
@@ -157,7 +188,11 @@ export class CardService {
     }
 
     /**
-     * Робота з чекбоксами рядків (каскадне виділення підтегів + КОНТЕКСТНА синхронізація)
+     * Handles individual component row selections, performing cascading child flag selection and context synchronization.
+     * @param {Object[]} results - Complete structural dataset matrix array reference
+     * @param {string|number} cardId - Unique container identifying scope
+     * @param {number} lineIndex - Numeric tracking position of target layout path item
+     * @returns {Object[]} Modified collection mapping state metrics across children and corresponding nodes
      */
     static toggleLineCheck(results, cardId, lineIndex) {
         const originCard = results.find((c) => c.id === cardId);
@@ -218,7 +253,10 @@ export class CardService {
     }
 
     /**
-     * Видалення цілого стовпця з таблиці (зняття виділення з усіх ліній із цим шляхом)
+     * Drops entire tabular field configuration globally by clearing active flags across matching semantic paths.
+     * @param {Object[]} results - Data array container holding runtime card states
+     * @param {string} path - Target semantic query route to be disqualified from processing
+     * @returns {Object[]} Normalized dataset with matching attributes removed from operational pipelines
      */
     static deleteColumn(results, path) {
         return results.map((card) => ({
@@ -230,7 +268,11 @@ export class CardService {
     }
 
     /**
-     * Видалення конкретної клітинки в таблиці
+     * Clear selected flag configuration for an explicit single item element matrix field.
+     * @param {Object[]} results - Data context containing execution parameters
+     * @param {string|number} cardId - Unique tracker index targeting specified item component
+     * @param {string} path - Strict structural semantic path lookup key
+     * @returns {Object[]} Mutated collection state with isolated cell metrics dereferenced
      */
     static deleteCell(results, cardId, path) {
         return results.map((card) => {
@@ -247,13 +289,15 @@ export class CardService {
     }
 
     /**
-     * Форматує дані карток у плоску таблицю для експорту (CSV, SQLite, JSON)
+     * Transforms layered, hierarchical node structures into localized flat row-column schemas for serialization engine exports.
+     * @param {Object[]} results - Multi-layered parsing artifact records list
+     * @returns {Object[]} Formatted flat schema records set matching tabular extraction layouts
      */
     static extractTableData(results) {
         const activeCards = results.filter((c) => c.cardChecked);
         if (activeCards.length === 0) return [];
 
-        // Збираємо унікальні заголовки (шляхи тегів)
+        // Aggregate unique structural headers based on clean semantic paths
         const columnsSet = new Set();
         activeCards.forEach((card) => {
             card.lines.forEach((line) => {
@@ -262,30 +306,31 @@ export class CardService {
                 }
             });
         });
-        
-        // Сортуємо стовпці за блоками та індексами
+
+        // Sort generated column headers sequentially by structural block and index hierarchy
         const columns = Array.from(columnsSet).sort((a, b) => {
             const matchA = a.match(/^B(\d+)_/);
             const matchB = b.match(/^B(\d+)_/);
             if (matchA && matchB) {
-                if (matchA[1] !== matchB[1]) return parseInt(matchA[1]) - parseInt(matchB[1]);
+                if (matchA[1] !== matchB[1])
+                    return parseInt(matchA[1]) - parseInt(matchB[1]);
             }
             return a.localeCompare(b);
         });
 
-        // Рахуємо індекси для красивого виводу
+        // Map sequential identifiers for high-readability layout formatting
         const blockCounters = {};
         const colDisplayNumbers = {};
-        columns.forEach(col => {
+        columns.forEach((col) => {
             const match = col.match(/^B(\d+)_/);
             const b = match ? match[1] : '99';
             if (!blockCounters[b]) blockCounters[b] = 1;
             colDisplayNumbers[col] = blockCounters[b]++;
         });
 
-        // Будуємо рядки
+        // Compile and map row objects matching structural layout requirements
         return activeCards.map((card, idx) => {
-            // Базові системні поля
+            // Initialize foundational system and source telemetry tracking keys
             const rowObj = {
                 '№': idx + 1,
                 ID: card.id,
@@ -293,17 +338,18 @@ export class CardService {
                 Image: card.img || '',
             };
 
-            // Динамічні поля на основі вибраної структури
+            // Populate dynamic cells extracted from validated responsive DOM layers
             columns.forEach((col) => {
                 const line = card.lines.find(
                     (l) => l.semanticPath === col && !l.isHtmlTag && l.checked,
                 );
-                
+
                 const match = col.match(/^B(\d+)_/);
-                const blockName = (match && match[1] !== '99') ? `Блок ${match[1]}` : 'Інше';
+                const blockName =
+                    match && match[1] !== '99' ? `Блок ${match[1]}` : 'Інше';
                 const colName = `${blockName} - Вставка ${colDisplayNumbers[col]}`;
 
-                rowObj[colName] = line ? line.text : ''; // Якщо даних немає в цій картці, лишаємо порожнім
+                rowObj[colName] = line ? line.text : ''; 
             });
 
             return rowObj;

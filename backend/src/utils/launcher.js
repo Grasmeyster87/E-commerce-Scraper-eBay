@@ -5,8 +5,13 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/**
+ * External Chrome process initialization utility wrapper.
+ * Launches a decoupled Chrome browser application instance configured with automated remote debugging protocols.
+ * @returns {Promise<void>} Resolves following execution grace window tracking initialization delays
+ */
 export async function launchBrowser() {
-    // Виходимо з папки utils на рівень проекту
+    // Navigate up from utils directory to the project root
     const projectRoot = path.join(__dirname, '../../');
     const profilePath = path.join(projectRoot, 'browser_profile');
 
@@ -18,9 +23,9 @@ export async function launchBrowser() {
     const command = `${chromePath} --remote-debugging-port=9222 --user-data-dir="${profilePath}" --no-first-run --no-default-browser-check`;
 
     console.log(`🔧 Ініціалізація браузера з профілем: ${profilePath}`);
-    
+
     exec(command);
 
-    // Даємо браузеру 2 секунди, щоб відкрити порт перед підключенням
-    return new Promise(resolve => setTimeout(resolve, 2000));
+    // Allow 2 seconds for the browser process to open port listeners before connecting
+    return new Promise((resolve) => setTimeout(resolve, 2000));
 }

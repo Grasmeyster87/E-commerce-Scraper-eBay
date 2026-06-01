@@ -4,9 +4,6 @@ import 'dotenv/config';
 import { runEbayScraper } from './scraperService.js';
 import { FileHandler } from './utils/fileHandler.js';
 import { DBService } from './utils/dbService.js';
-
-// Вам також потрібно імпортувати CardService на бекенд,
-// щоб обробляти дані ПЕРЕД збереженням у базу
 import { CardService } from './utils/cardProcessor.js';
 
 const app = express();
@@ -16,35 +13,35 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// 1. ГОЛОВНИЙ ПРОЦЕС СКРАПІНГУ ТА ЗБЕРЕЖЕННЯ В БД
+// 1. MAIN SCRAPING AND DB SAVING PROCESS
 app.post('/api/scrape', async (req, res) => {
     const { query, saveDebugHtml, action, itemsPerPage, activeTable, dbSettings } = req.body;
     try {
-        console.log(`🚀 Бекенд отримав -> Дія: [${action.toUpperCase()}] | Таблиця: ${activeTable || 'Немає'}`);
+        console.log(`🚀 Backend received -> Action: [${action.toUpperCase()}] | Table: ${activeTable || 'None'}`);
         
-        // 1. Збираємо чисті дані з сайту
+        // 1. Collect raw data from the website
         const result = await runEbayScraper(query, saveDebugHtml, action, itemsPerPage);
         
-        // 2. Обробляємо картки
+        // 2. Process the cards
         const processedCards = CardService.processRawData(result.data);
         
-        // 3. Визначаємо назву таблиці
+        // 3. Determine the table name
         let tableName = activeTable;
 
-        // Якщо це перший крок пошуку АБО назва таблиці з якихось причин не прийшла — створюємо її ОДИН раз
+        // If this is the first search step OR the table name is missing for some reason — create it ONCE
         if (action === 'search' || !tableName) {
             tableName = await DBService.createTableForQuery(dbSettings, query);
-            console.log(`🗄️ СТВОРЕНО ОДНУ ТАБЛИЦЮ НА ВЕСЬ ЗАПИТ: ${tableName}`);
+            console.log(`🗄️ CREATED ONE TABLE FOR THE ENTIRE QUERY: ${tableName}`);
         } else {
-            console.log(`♻️ ДОПИСУЄМО дані сторінки в існуючу таблицю: ${tableName}`);
+            console.log(`♻️ APPENDING page data to the existing table: ${tableName}`);
         }
 
-        // 4. Записуємо картки в SQLite (вони додаються в ту саму таблицю)
+        // 4. Save cards to SQLite (they are appended to the same table)
         if (processedCards.length > 0) {
             await DBService.insertCards(dbSettings, tableName, processedCards);
         }
         
-        // Повертаємо назву назад, щоб фронтенд її зафіксував у себе в циклі
+        // Return the name back so the frontend can lock it in its loop
         res.json({ 
             success: true, 
             tableName: tableName, 
@@ -52,12 +49,12 @@ app.post('/api/scrape', async (req, res) => {
             pagination: result.pagination 
         });
     } catch (error) {
-        console.error('❌ Помилка на бекенді:', error.message);
+        console.error('❌ Backend error:', error.message);
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-// 2. ОТРИМАННЯ ДАНИХ (ПАГІНАЦІЯ)
+// 2. FETCH DATA (PAGINATION)
 app.post('/api/cards/list', async (req, res) => {
     const { dbSettings, tableName, page = 1, limit = 60 } = req.body;
     if (!tableName) return res.json({ cards: [], total: 0 });
@@ -76,7 +73,7 @@ app.post('/api/cards/list', async (req, res) => {
     }
 });
 
-// 3. ОТРИМАННЯ ОСТАННЬОЇ ТАБЛИЦІ (ПРИ СТАРТІ)
+// 3. FETCH LATEST TABLE (ON STARTUP)
 app.post('/api/tables/latest', async (req, res) => {
     const { dbSettings } = req.body;
     try {
@@ -87,7 +84,7 @@ app.post('/api/tables/latest', async (req, res) => {
     }
 });
 
-// 4. ОНОВЛЕННЯ КАРТКИ (ЧЕКБОКСИ)
+// 4. UPDATE CARD (CHECKBOXES)
 app.put('/api/cards/:id', async (req, res) => {
     const { id } = req.params;
     const { dbSettings, tableName, updates } = req.body;
@@ -99,21 +96,21 @@ app.put('/api/cards/:id', async (req, res) => {
     }
 });
 
-// 5. ЕКСПОРТ ДАНИХ (Беремо з БД, а не з Фронтенду)
+// 5. DATA EXPORT (Sourced from DB, not Frontend)
 app.post('/api/save', async (req, res) => {
     const { format, directory, dbSettings, tableName } = req.body;
     try {
-        // Забираємо всі активні картки з БД
+        // Fetch all active cards from the DB
         const allActiveCards = await DBService.getAllActiveCards(
             dbSettings,
             tableName,
         );
 
-        // Формуємо таблицю на бекенді
+        // Generate the table on the backend
         const tableData = CardService.extractTableData(allActiveCards);
 
         if (tableData.length === 0)
-            throw new Error('Немає активних карток для експорту');
+            throw new Error('No active cards available for export');
 
         const targetDir =
             !directory || directory.trim() === 'backend/data'
@@ -131,7 +128,7 @@ app.post('/api/save', async (req, res) => {
             result = FileHandler.saveToXML(tableData, targetDir);
         else if (format === 'pdf')
             result = await FileHandler.saveToPDF(tableData, targetDir);
-        else throw new Error('Невідомий формат');
+        else throw new Error('Unknown format');
 
         res.json(result);
     } catch (error) {
@@ -140,5 +137,5 @@ app.post('/api/save', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🟢 Сервер запущено: http://localhost:${PORT}`);
+    console.log(`🟢 Server started: http://localhost:${PORT}`);
 });
