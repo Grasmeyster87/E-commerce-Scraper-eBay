@@ -73,6 +73,8 @@ function App() {
     // Frontend-only pagination state for rendering localized chunks of accumulated data
     const [frontendPage, setFrontendPage] = useState(1);
 
+    // State for storing a list of all available tables in the database
+    const [availableTables, setAvailableTables] = useState([]);
     /**
      * Refs to capture the absolute latest state variables inside async setTimeout loops.
      * Prevents stale closures during automated recursive scraping.
@@ -129,6 +131,7 @@ function App() {
                             .then((cardsRes) => {
                                 setResults(cardsRes.data.cards);
                                 setFrontendPage(1);
+                                fetchAvailableTables();
                             });
                     }
                 })
@@ -141,6 +144,42 @@ function App() {
         }
         // Only watch triggers that should genuinely initiate a database reload
     }, [dbSettings.source, dbSettings.loadLatestOnStart]);
+
+    /**
+     * Loads a list of all tables from the database and their number of cards.
+     */
+    const fetchAvailableTables = () => {
+        axios
+            .post(`${backendUrl}/api/tables/list`, {
+                dbSettings: dbSettingsRef.current,
+            })
+            .then((res) => setAvailableTables(res.data.tables || []))
+            .catch((err) => console.error('Failed to fetch tables:', err));
+    };
+
+    /**
+     * Loads the contents of the selected table from the drop-down list.
+     */
+    const handleLoadTable = async (tableName) => {
+        if (!tableName) return;
+        setLoading(true);
+        try {
+            setActiveTable(tableName);
+            const res = await axios.post(`${backendUrl}/api/cards/list`, {
+                dbSettings,
+                tableName,
+                page: 1,
+                limit: 100000,
+            });
+            setResults(res.data.cards);
+            setFrontendPage(1);
+            setPagination({ currentPage: 1, totalPages: 1, itemsPerPage: 60 });
+        } catch (err) {
+            alert(`Error loading table: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     /**
      * Core Scraping Orchestration Function.
@@ -214,6 +253,7 @@ function App() {
             if (!isAutoCall) alert(`Error occurred: ${error.message}`);
         } finally {
             if (!isAutoCall) setLoading(false);
+            fetchAvailableTables();
         }
     };
 
@@ -533,9 +573,7 @@ function App() {
                                 }
                                 className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
                             />
-                            <span>
-                                Save page HTML for debugging
-                            </span>
+                            <span>Save page HTML for debugging</span>
                         </label>
                     </div>
                 </div>
@@ -561,6 +599,9 @@ function App() {
                         setItemsPerPageSelection={setItemsPerPageSelection}
                         dbSettings={dbSettings}
                         setDbSettings={setDbSettings}
+                        activeTable={activeTable}
+                        availableTables={availableTables}
+                        handleLoadTable={handleLoadTable}
                     />
 
                     {/* Content Section & Product List Feed */}

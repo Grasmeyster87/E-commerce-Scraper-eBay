@@ -1,6 +1,6 @@
 export class CardService {
     /**
-     * Первинна обробка масиву карток з бекенду та генерація семантичних шляхів
+     * Primary processing of the card array from the backend and generation of semantic paths
      */
     static processRawData(rawData) {
         return rawData.map((card) => {
@@ -11,8 +11,8 @@ export class CardService {
 
             let currentPathTracker = [];
             let originalPathTracker = [];
-            
-            // Лічильник для унікальності однакових шляхів в межах однієї картки
+
+            // Counter for uniqueness of identical paths within one card
             let cleanPathCounters = {};
 
             const linesWithPaths = card.lines.map((line) => {
@@ -22,13 +22,13 @@ export class CardService {
                     (typeof line.text === 'string' &&
                         line.text.trim().startsWith('<'));
 
-                // Оригінальний шлях для відображення при наведенні (title)
+                // Original path to display on hover (title)
                 const htmlTagsPath = originalPathTracker
                     .slice(0, depth)
                     .filter(Boolean)
                     .join(' > ');
 
-                // Очищений шлях для групування в стовпці (видаляємо volatile класи типу bold, primary)
+                // Cleaned up the path for grouping in columns (removing volatile classes like bold, primary)
                 const cleanSemanticPath = currentPathTracker
                     .slice(0, depth)
                     .filter(Boolean)
@@ -36,10 +36,16 @@ export class CardService {
 
                 if (isHtmlTag) {
                     originalPathTracker[depth] = line.text.trim();
-                    originalPathTracker = originalPathTracker.slice(0, depth + 1);
+                    originalPathTracker = originalPathTracker.slice(
+                        0,
+                        depth + 1,
+                    );
 
                     let cleanTagStr = line.text
-                        .replace(/\b(bold|large-\d|large|small|default|primary|secondary|negative|positive|regular|italic)\b/g, '')
+                        .replace(
+                            /\b(bold|large-\d|large|small|default|primary|secondary|negative|positive|regular|italic)\b/g,
+                            '',
+                        )
                         .replace(/\s+/g, ' ')
                         .replace(/ class="\s*"/, '')
                         .replace(/ class="([^"]*?)\s+"/g, ' class="$1"')
@@ -58,20 +64,29 @@ export class CardService {
                     for (let i = 1; i <= depth; i++) {
                         const tag = originalPathTracker[i];
                         if (tag) {
-                            if (tag.includes('__header')) { bIndex = 1; break; }
-                            if (tag.includes('__attributes')) { bIndex = 2; break; }
-                            if (tag.includes('__footer')) { bIndex = 3; break; }
+                            if (tag.includes('__header')) {
+                                bIndex = 1;
+                                break;
+                            }
+                            if (tag.includes('__attributes')) {
+                                bIndex = 2;
+                                break;
+                            }
+                            if (tag.includes('__footer')) {
+                                bIndex = 3;
+                                break;
+                            }
                         }
                     }
-                    
+
                     let baseSemanticPath = `B${bIndex}_${cleanSemanticPath}`;
-                    
+
                     if (!cleanPathCounters[baseSemanticPath]) {
                         cleanPathCounters[baseSemanticPath] = 0;
                     }
                     cleanPathCounters[baseSemanticPath]++;
-                    
-                    // Додаємо індекс входження, щоб уникнути колапсу однакових тегів (наприклад, двох span в одному div)
+
+                    // Add an entry index to avoid collapsing identical tags (for example, two spans in one div)
                     finalSemanticPath = `${baseSemanticPath}_[${cleanPathCounters[baseSemanticPath]}]`;
                 }
 
@@ -79,7 +94,7 @@ export class CardService {
                     ...line,
                     isHtmlTag,
                     semanticPath: finalSemanticPath,
-                    htmlTagsPath: htmlTagsPath || null, // Зберігаємо для відображення при наведенні
+                    htmlTagsPath: htmlTagsPath || null, // Save for display on hover
                 };
             });
 
@@ -97,7 +112,7 @@ export class CardService {
     }
 
     /**
-     * Перемикання збереження лінків з урахуванням прапорця Унікальності
+     * Toggle saving links based on the Uniqueness flag
      */
     static toggleLinkSave(results, cardId, field) {
         const originCard = results.find((c) => c.id === cardId);
@@ -115,7 +130,7 @@ export class CardService {
     }
 
     /**
-     * Перемикання режиму "Показати Картку" з урахуванням прапорця Унікальності
+     * Toggle "Show Card" mode with Uniqueness flag checked
      */
     static toggleCleanText(results, cardId) {
         const originCard = results.find((c) => c.id === cardId);
@@ -133,7 +148,7 @@ export class CardService {
     }
 
     /**
-     * Зміна лічильника глибини з урахуванням лімітів та унікальності
+     * Changing the depth counter considering limits and uniqueness
      */
     static handleDepthChange(results, cardId, newValue) {
         const originCard = results.find((c) => c.id === cardId);
@@ -157,7 +172,7 @@ export class CardService {
     }
 
     /**
-     * Робота з чекбоксами рядків (каскадне виділення підтегів + КОНТЕКСТНА синхронізація)
+     * Working with row checkboxes (cascading subtag selection + CONTEXTUAL synchronization)
      */
     static toggleLineCheck(results, cardId, lineIndex) {
         const originCard = results.find((c) => c.id === cardId);
@@ -218,7 +233,7 @@ export class CardService {
     }
 
     /**
-     * Видалення цілого стовпця з таблиці (зняття виділення з усіх ліній із цим шляхом)
+     * Delete an entire column from a table (deselect all lines with that path)
      */
     static deleteColumn(results, path) {
         return results.map((card) => ({
@@ -230,7 +245,7 @@ export class CardService {
     }
 
     /**
-     * Видалення конкретної клітинки в таблиці
+     * Delete a specific cell in a table
      */
     static deleteCell(results, cardId, path) {
         return results.map((card) => {
@@ -247,13 +262,13 @@ export class CardService {
     }
 
     /**
-     * Форматує дані карток у плоску таблицю для експорту (CSV, SQLite, JSON)
+     * Formats card data into a flat table for export (CSV, SQLite, JSON)
      */
     static extractTableData(results) {
         const activeCards = results.filter((c) => c.cardChecked);
         if (activeCards.length === 0) return [];
 
-        // Збираємо унікальні заголовки (шляхи тегів)
+        // Collecting unique titles (tag paths)
         const columnsSet = new Set();
         activeCards.forEach((card) => {
             card.lines.forEach((line) => {
@@ -262,30 +277,31 @@ export class CardService {
                 }
             });
         });
-        
-        // Сортуємо стовпці за блоками та індексами
+
+        // Sort columns by blocks and indexes
         const columns = Array.from(columnsSet).sort((a, b) => {
             const matchA = a.match(/^B(\d+)_/);
             const matchB = b.match(/^B(\d+)_/);
             if (matchA && matchB) {
-                if (matchA[1] !== matchB[1]) return parseInt(matchA[1]) - parseInt(matchB[1]);
+                if (matchA[1] !== matchB[1])
+                    return parseInt(matchA[1]) - parseInt(matchB[1]);
             }
             return a.localeCompare(b);
         });
 
-        // Рахуємо індекси для красивого виводу
+        // Calculating indices for a beautiful output
         const blockCounters = {};
         const colDisplayNumbers = {};
-        columns.forEach(col => {
+        columns.forEach((col) => {
             const match = col.match(/^B(\d+)_/);
             const b = match ? match[1] : '99';
             if (!blockCounters[b]) blockCounters[b] = 1;
             colDisplayNumbers[col] = blockCounters[b]++;
         });
 
-        // Будуємо рядки
+        // Building lines
         return activeCards.map((card, idx) => {
-            // Базові системні поля
+            // Basic system fields
             const rowObj = {
                 '№': idx + 1,
                 ID: card.id,
@@ -293,17 +309,18 @@ export class CardService {
                 Image: card.img || '',
             };
 
-            // Динамічні поля на основі вибраної структури
+            // Dynamic fields based on the selected structure
             columns.forEach((col) => {
                 const line = card.lines.find(
                     (l) => l.semanticPath === col && !l.isHtmlTag && l.checked,
                 );
-                
-                const match = col.match(/^B(\d+)_/);
-                const blockName = (match && match[1] !== '99') ? `Блок ${match[1]}` : 'Інше';
-                const colName = `${blockName} - Вставка ${colDisplayNumbers[col]}`;
 
-                rowObj[colName] = line ? line.text : ''; // Якщо даних немає в цій картці, лишаємо порожнім
+                const match = col.match(/^B(\d+)_/);
+                const blockName =
+                    match && match[1] !== '99' ? `Блок ${match[1]}` : 'Інше';
+                const colName = `${blockName} - Insert ${colDisplayNumbers[col]}`;
+
+                rowObj[colName] = line ? line.text : ''; // If there is no data in this card, leave it blank.
             });
 
             return rowObj;

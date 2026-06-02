@@ -10,7 +10,7 @@ export default function Sidebar({
     handleSaveAllFormats, handleSaveData, handleClear,
     pagination, scrapeAllPages, setScrapeAllPages, onNextPage, loading,
     maxScrapePages, setMaxScrapePages, itemsPerPageSelection, setItemsPerPageSelection,
-    dbSettings, setDbSettings 
+    dbSettings, setDbSettings, activeTable, availableTables, handleLoadTable
 }) {
     return (
         <aside className="w-full lg:w-64 shrink-0 lg:sticky lg:top-6 space-y-4">
@@ -75,18 +75,49 @@ export default function Sidebar({
 
             {/* --- IO & EXPORT PIPELINE MODULE --- */}
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col items-center justify-between gap-4">
-                <div className="flex-1 w-full">
-                    <label className="block text-[10px] text-slate-500 font-mono mb-1">
-                        EXPORT DIRECTORY PATH:
-                    </label>
-                    <div className="flex gap-2">
-                        <input
-                            type="text"
-                            value={saveDir}
-                            onChange={(e) => setSaveDir(e.target.value)}
-                            placeholder="backend/data"
-                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
-                        />
+                <div className="flex-1 w-full space-y-4">
+                    {/* Path & DB Name */}
+                    <div>
+                        <label className="block text-[10px] text-slate-500 font-mono mb-1">
+                            EXPORT DIRECTORY PATH & DB NAME:
+                        </label>
+                        <div className="flex flex-col gap-2">
+                            <input
+                                type="text"
+                                value={saveDir}
+                                onChange={(e) => setSaveDir(e.target.value)}
+                                placeholder="backend/data"
+                                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
+                            />
+                            <div className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-[11px] text-cyan-400 font-mono flex items-center gap-2 overflow-hidden" title="Active SQLite Database File">
+                                <span>🗄️</span>
+                                <span className="truncate">
+                                    {dbSettings.source === 'custom' && dbSettings.customPath 
+                                        ? 'customDatabase.sqlite' 
+                                        : 'defaultDatabseForDataSQLT3.sqlite'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Table Dropdown */}
+                    <div>
+                        <label className="block text-[10px] text-slate-500 font-mono mb-1">
+                            ACTIVE TABLE (DATASET):
+                        </label>
+                        <select
+                            value={activeTable || ""}
+                            onChange={(e) => handleLoadTable(e.target.value)}
+                            disabled={loading}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-50"
+                        >
+                            <option value="" disabled>Select a table to load...</option>
+                            {availableTables.map((table) => (
+                                <option key={table.name} value={table.name}>
+                                    {table.name} ({table.count} rows)
+                                </option>
+                            ))}
+                        </select>
                     </div>
                 </div>
             </div>
