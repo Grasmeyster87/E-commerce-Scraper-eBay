@@ -146,6 +146,34 @@ export class DBService {
     }
 
     /**
+     * Отримує список усіх збережених таблиць скрапінгу разом із кількістю рядків у них.
+     * @static
+     * @method getAllTablesWithCounts
+     * @param {Object} dbSettings - Налаштування бази даних.
+     * @returns {Promise<Object[]>} Масив об'єктів { name, count }.
+     */
+    static async getAllTablesWithCounts(dbSettings) {
+        const db = await this.connect(dbSettings);
+        try {
+            const tables = await this.all(
+                db,
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'tbl_%' ORDER BY name DESC",
+            );
+            const result = [];
+            for (const table of tables) {
+                const countRow = await this.get(
+                    db,
+                    `SELECT COUNT(*) as count FROM ${table.name}`,
+                );
+                result.push({ name: table.name, count: countRow.count });
+            }
+            return result;
+        } finally {
+            db.close();
+        }
+    }
+
+    /**
      * Scans structural system catalogs to return the most recently provisioned search dataset table.
      * Used for restoring historical sessions upon initial frontend dashboard boots.
      * * @static

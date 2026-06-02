@@ -15,38 +15,56 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // 1. MAIN SCRAPING AND DB SAVING PROCESS
 app.post('/api/scrape', async (req, res) => {
-    const { query, saveDebugHtml, action, itemsPerPage, activeTable, dbSettings } = req.body;
+    const {
+        query,
+        saveDebugHtml,
+        action,
+        itemsPerPage,
+        activeTable,
+        dbSettings,
+    } = req.body;
     try {
-        console.log(`🚀 Backend received -> Action: [${action.toUpperCase()}] | Table: ${activeTable || 'None'}`);
-        
+        console.log(
+            `🚀 Backend received -> Action: [${action.toUpperCase()}] | Table: ${activeTable || 'None'}`,
+        );
+
         // 1. Collect raw data from the website
-        const result = await runEbayScraper(query, saveDebugHtml, action, itemsPerPage);
-        
+        const result = await runEbayScraper(
+            query,
+            saveDebugHtml,
+            action,
+            itemsPerPage,
+        );
+
         // 2. Process the cards
         const processedCards = CardService.processRawData(result.data);
-        
+
         // 3. Determine the table name
         let tableName = activeTable;
 
         // If this is the first search step OR the table name is missing for some reason — create it ONCE
         if (action === 'search' || !tableName) {
             tableName = await DBService.createTableForQuery(dbSettings, query);
-            console.log(`🗄️ CREATED ONE TABLE FOR THE ENTIRE QUERY: ${tableName}`);
+            console.log(
+                `🗄️ CREATED ONE TABLE FOR THE ENTIRE QUERY: ${tableName}`,
+            );
         } else {
-            console.log(`♻️ APPENDING page data to the existing table: ${tableName}`);
+            console.log(
+                `♻️ APPENDING page data to the existing table: ${tableName}`,
+            );
         }
 
         // 4. Save cards to SQLite (they are appended to the same table)
         if (processedCards.length > 0) {
             await DBService.insertCards(dbSettings, tableName, processedCards);
         }
-        
+
         // Return the name back so the frontend can lock it in its loop
-        res.json({ 
-            success: true, 
-            tableName: tableName, 
-            data: processedCards, 
-            pagination: result.pagination 
+        res.json({
+            success: true,
+            tableName: tableName,
+            data: processedCards,
+            pagination: result.pagination,
         });
     } catch (error) {
         console.error('❌ Backend error:', error.message);
@@ -79,6 +97,17 @@ app.post('/api/tables/latest', async (req, res) => {
     try {
         const tableName = await DBService.getLatestTable(dbSettings);
         res.json({ tableName });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 3.5 FETCH ALL TABLES WITH ROW COUNTS
+app.post('/api/tables/list', async (req, res) => {
+    const { dbSettings } = req.body;
+    try {
+        const tables = await DBService.getAllTablesWithCounts(dbSettings);
+        res.json({ tables });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
