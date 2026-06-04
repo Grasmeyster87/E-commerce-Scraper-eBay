@@ -55,7 +55,7 @@ export class CardService {
                     currentPathTracker = currentPathTracker.slice(0, depth + 1);
                 }
 
-                let finalSemanticPath = null;
+                let finalSemanticPath;
                 if (isHtmlTag) {
                     finalSemanticPath = cleanSemanticPath || null;
                 } else {
