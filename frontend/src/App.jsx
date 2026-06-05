@@ -145,6 +145,15 @@ function App() {
         // Only watch triggers that should genuinely initiate a database reload
     }, [dbSettings.source, dbSettings.loadLatestOnStart]);
 
+    // 1. Додай новий стан для затримок (разом з іншими стейтами на початку App)
+    const [pageDelays, setPageDelays] = useState([3000]); // Дефолтна затримка 3000ms
+
+    // 2. Створи ref для синхронізації в асинхронних функціях
+    const pageDelaysRef = useRef(pageDelays);
+
+    useEffect(() => {
+        pageDelaysRef.current = pageDelays;
+    }, [pageDelays]);
     /**
      * Loads a list of all tables from the database and their number of cards.
      */
@@ -208,6 +217,8 @@ function App() {
                 itemsPerPage: itemsPerPageSelection,
                 dbSettings,
                 activeTable: currentTableName,
+                pageDelays: pageDelaysRef.current,
+                currentPage: pagination.currentPage,
             });
 
             if (!response.data.success)
@@ -602,6 +613,7 @@ function App() {
                         activeTable={activeTable}
                         availableTables={availableTables}
                         handleLoadTable={handleLoadTable}
+                        setPageDelays={setPageDelays}
                     />
 
                     {/* Content Section & Product List Feed */}
