@@ -20,6 +20,8 @@ export async function runEbayScraper(
     saveDebugHtml = false,
     action = 'search',
     itemsPerPage = 60,
+    pageDelays = [3000],
+    currentPage = 1,
 ) {
     const __filename = fileURLToPath(import.meta.url);
     const __dirname = path.dirname(__filename);
@@ -79,12 +81,47 @@ export async function runEbayScraper(
                 })
                 .catch(() => {});
         } else if (action === 'next') {
+            // Validate the array (to avoid errors if something wrong came from the front)            const delays =
+            Array.isArray(pageDelays) && pageDelays.length > 0
+                ? pageDelays
+                : [3000];
+
+            // Choose a loop delay.
+            // currentPage - 1 is used to take index 0 on the 1st page.
+            // Заміни той рядок на цей блок:
+            const MIN_DELAY = 3000;
+
+            // Отримуємо масив, якщо він порожній — використовуємо [3000]
+            let rawDelays =
+                Array.isArray(pageDelays) && pageDelays.length > 0
+                    ? pageDelays
+                    : [MIN_DELAY];
+
+            // Фільтруємо масив: якщо якесь значення менше 3000, замінюємо його на 3000
+            const delays = rawDelays.map((delay) =>
+                delay < MIN_DELAY ? MIN_DELAY : delay,
+            );
+
+            // Тепер вибираємо затримку
+            const currentDelay = delays[(currentPage - 1) % delays.length];
+
+            console.log(
+                `⏳ Applying dynamic pagination delay: ${currentDelay}ms (Page ${currentPage})`,
+            );
+            await delay(currentDelay);
+            console.log(
+                `⏳ Applying dynamic pagination delay: ${currentDelay}ms (Page ${currentPage})`,
+            );
+
+            // Call the delay function (it already exists at the beginning of the scraperService.js file)
+            await delay(currentDelay);
+
             const clicked = await scraper.goToNextPageByClick();
             if (!clicked) {
                 throw new Error(
                     'Last page reached or structural next button not found.',
                 );
-            }            
+            }
             await page
                 .waitForNavigation({
                     waitUntil: 'networkidle2',
@@ -99,7 +136,7 @@ export async function runEbayScraper(
         }
 
         const data = await scraper.scrapePage();
-        const pagination = await scraper.getPaginationInfo(); 
+        const pagination = await scraper.getPaginationInfo();
 
         return { data, pagination };
     } catch (error) {

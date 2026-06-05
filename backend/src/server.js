@@ -5,6 +5,7 @@ import { runEbayScraper } from './scraperService.js';
 import { FileHandler } from './utils/fileHandler.js';
 import { DBService } from './utils/dbService.js';
 import { CardService } from './utils/cardProcessor.js';
+import { SettingsDBService } from './utils/settingsDbService.js';
 
 const app = express();
 const PORT = process.env.PORT || 5050;
@@ -22,6 +23,8 @@ app.post('/api/scrape', async (req, res) => {
         itemsPerPage,
         activeTable,
         dbSettings,
+        pageDelays,  
+        currentPage, 
     } = req.body;
     try {
         console.log(
@@ -34,6 +37,8 @@ app.post('/api/scrape', async (req, res) => {
             saveDebugHtml,
             action,
             itemsPerPage,
+            pageDelays,  
+            currentPage,
         );
 
         // 2. Process the cards
@@ -160,6 +165,43 @@ app.post('/api/save', async (req, res) => {
         else throw new Error('Unknown format');
 
         res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Initialization of the service database at server startup
+SettingsDBService.initDB()
+    .then(() => console.log('⚙️ Service DB (servise_db.sqlite) initialized'))
+    .catch((err) => console.error('❌ Failed to initialize Service DB:', err));
+
+// NEW ROUTES FOR SETTINGS (DELAYS)
+
+// Saving a profile
+app.post('/api/settings/delays', async (req, res) => {
+    const { profileName, pageDelays } = req.body;
+
+    if (!profileName || !Array.isArray(pageDelays)) {
+        return res
+            .status(400)
+            .json({ success: false, error: 'Invalid payload data' });
+    }
+
+    try {
+        await SettingsDBService.saveProfile(profileName, pageDelays);
+        console.log(`💾 Delay profile saved: [${profileName}]`);
+        res.json({ success: true, message: 'Profile saved successfully' });
+    } catch (error) {
+        console.error('❌ Error saving delay profile:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Getting a list of profiles
+app.get('/api/settings/delays', async (req, res) => {
+    try {
+        const profiles = await SettingsDBService.getProfiles();
+        res.json({ success: true, profiles });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
