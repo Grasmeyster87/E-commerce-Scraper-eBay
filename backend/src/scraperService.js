@@ -17,6 +17,7 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 export async function runEbayScraper(
     searchQuery,
+    searchMode = 'query',
     saveDebugHtml = false,
     action = 'search',
     itemsPerPage = 60,
@@ -73,13 +74,33 @@ export async function runEbayScraper(
 
         // NAVIGATION LOGIC
         if (action === 'search') {
-            await scraper.search(searchQuery, itemsPerPage);
+            // Branching search logic
+            if (searchMode === 'link') {
+                console.log(`🔗 Navigating directly to URL: ${searchQuery}`);
+                // Go directly to the generated link with filters
+                await scraper.page.goto(searchQuery, {
+                    waitUntil: 'networkidle2',
+                    timeout: 60000,
+                });
+            } else {
+                console.log(`🔍 Searching by query: ${searchQuery}`);
+                // Standard search by entering text into the input
+                await scraper.search(searchQuery, itemsPerPage);
+                await page
+                    .waitForNavigation({
+                        waitUntil: 'networkidle2',
+                        timeout: 10000,
+                    })
+                    .catch(() => {});
+            }
+
+/*             await scraper.search(searchQuery, itemsPerPage);
             await page
                 .waitForNavigation({
                     waitUntil: 'networkidle2',
                     timeout: 10000,
                 })
-                .catch(() => {});
+                .catch(() => {}); */
         } else if (action === 'next') {
             // Validate the array (to avoid errors if something wrong came from the front)            const delays =
             Array.isArray(pageDelays) && pageDelays.length > 0
@@ -88,21 +109,21 @@ export async function runEbayScraper(
 
             // Choose a loop delay.
             // currentPage - 1 is used to take index 0 on the 1st page.
-            // Заміни той рядок на цей блок:
+            // Replace that line with this block
             const MIN_DELAY = 3000;
 
-            // Отримуємо масив, якщо він порожній — використовуємо [3000]
+            // We get the array if it is empty — use [3000]
             let rawDelays =
                 Array.isArray(pageDelays) && pageDelays.length > 0
                     ? pageDelays
                     : [MIN_DELAY];
 
-            // Фільтруємо масив: якщо якесь значення менше 3000, замінюємо його на 3000
+            // Filter the array: if any value is less than 3000, replace it with 3000
             const delays = rawDelays.map((delay) =>
                 delay < MIN_DELAY ? MIN_DELAY : delay,
             );
 
-            // Тепер вибираємо затримку
+            // Now we choose the delay
             const currentDelay = delays[(currentPage - 1) % delays.length];
 
             console.log(

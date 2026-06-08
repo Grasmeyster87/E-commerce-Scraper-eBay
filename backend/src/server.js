@@ -18,6 +18,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.post('/api/scrape', async (req, res) => {
     const {
         query,
+        searchMode,
         saveDebugHtml,
         action,
         itemsPerPage,
@@ -34,6 +35,7 @@ app.post('/api/scrape', async (req, res) => {
         // 1. Collect raw data from the website
         const result = await runEbayScraper(
             query,
+            searchMode,
             saveDebugHtml,
             action,
             itemsPerPage,

@@ -193,16 +193,48 @@ export class EbayScraper {
             '🔄 Simulating user interaction: triggering next-page navigation action sequence...',
         );
         return await this.page.evaluate(() => {
-            // Locate the next-page trigger via attribute maps or matching structural layout classes
-            const nextBtn = document.querySelector(
-                'button[type="next"], a[type="next"], [class*="pagination"] [class*="next"]',
-            );
+            const navs = document.querySelectorAll('nav');
+            let nextBtn = null;
+
+            for (const nav of navs) {
+                const ol = nav.querySelector('ol');
+                if (ol) {
+                    const lis = ol.querySelectorAll('li');
+                    const hasDigits = Array.from(lis).some((li) => /\d/.test(li.textContent));
+                    
+                    if (hasDigits) {
+                        let sibling = ol.nextElementSibling;
+                        while (sibling) {
+                            if (sibling.tagName.toLowerCase() === 'a' || sibling.tagName.toLowerCase() === 'button') {
+                                nextBtn = sibling;
+                                break;
+                            }
+                            sibling = sibling.nextElementSibling;
+                        }
+                        
+                        // Fallback: get the first a/button that appears after ol in the DOM tree within this nav
+                        if (!nextBtn) {
+                            const elements = Array.from(nav.querySelectorAll('a, button'));
+                            nextBtn = elements.find(
+                                (el) => ol.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING
+                            );
+                        }
+
+                        if (nextBtn) {
+                            break;
+                        }
+                    }
+                }
+            }
 
             if (nextBtn) {
                 // Assert check to verify whether button states have been deactivated by interface limiters
                 if (
-                    nextBtn.hasAttribute('aria-disabled') &&
-                    nextBtn.getAttribute('aria-disabled') === 'true'
+                    (nextBtn.hasAttribute('aria-disabled') && nextBtn.getAttribute('aria-disabled') === 'true') ||
+                    nextBtn.hasAttribute('disabled') ||
+                    nextBtn.classList.contains('disabled') ||
+                    nextBtn.getAttribute('href') === 'javascript:;' ||
+                    nextBtn.getAttribute('href') === '#'
                 ) {
                     return false;
                 }
