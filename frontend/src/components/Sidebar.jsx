@@ -24,7 +24,7 @@ export default function Sidebar({
     activeTable,
     availableTables,
     handleLoadTable,
-    setPageDelays,
+    setPageDelays,  
 }) {
     // State to manage the expanded status of each menu section
     const [openSections, setOpenSections] = useState({

@@ -73,6 +73,9 @@ function App() {
     // Frontend-only pagination state for rendering localized chunks of accumulated data
     const [frontendPage, setFrontendPage] = useState(1);
 
+    //
+    const [searchMode, setSearchMode] = useState('query');
+
     // State for storing a list of all available tables in the database
     const [availableTables, setAvailableTables] = useState([]);
     /**
@@ -212,6 +215,7 @@ function App() {
         try {
             const response = await axios.post(`${backendUrl}/api/scrape`, {
                 query,
+                searchMode,
                 saveDebugHtml,
                 action,
                 itemsPerPage: itemsPerPageSelection,
@@ -555,7 +559,7 @@ function App() {
                         <input
                             type="text"
                             className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-cyan-500/50 outline-none text-slate-200 placeholder-slate-600"
-                            placeholder="Enter product..."
+                            placeholder="Enter product or URL..."
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onKeyDown={(e) =>
@@ -574,7 +578,8 @@ function App() {
                         </button>
                     </div>
 
-                    <div className="flex items-center gap-3 px-2">
+                    {/* Блок з чекбоксом та радіокнопками */}
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-4 px-2">
                         <label className="flex items-center gap-2 cursor-pointer group text-slate-400 text-sm hover:text-slate-200 transition-colors">
                             <input
                                 type="checkbox"
@@ -586,6 +591,37 @@ function App() {
                             />
                             <span>Save page HTML for debugging</span>
                         </label>
+
+                        {/* Радіокнопки для вибору режиму */}
+                        <div className="flex items-center space-x-4 bg-slate-950/50 p-2 rounded-xl border border-slate-800/80">
+                            <label className="flex items-center space-x-2 text-sm text-slate-300 cursor-pointer hover:text-slate-100 transition-colors">
+                                <input
+                                    type="radio"
+                                    name="searchMode"
+                                    value="query"
+                                    checked={searchMode === 'query'}
+                                    onChange={(e) =>
+                                        setSearchMode(e.target.value)
+                                    }
+                                    className="accent-cyan-500 w-4 h-4 cursor-pointer"
+                                />
+                                <span>Search by query</span>
+                            </label>
+
+                            <label className="flex items-center space-x-2 text-sm text-slate-300 cursor-pointer hover:text-slate-100 transition-colors">
+                                <input
+                                    type="radio"
+                                    name="searchMode"
+                                    value="link"
+                                    checked={searchMode === 'link'}
+                                    onChange={(e) =>
+                                        setSearchMode(e.target.value)
+                                    }
+                                    className="accent-cyan-500 w-4 h-4 cursor-pointer"
+                                />
+                                <span>Search by link</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
