@@ -73,7 +73,7 @@ function App() {
     // Frontend-only pagination state for rendering localized chunks of accumulated data
     const [frontendPage, setFrontendPage] = useState(1);
 
-    //
+    // selection of search mode via text string and search or via link in which the required filters have already been created
     const [searchMode, setSearchMode] = useState('query');
 
     // State for storing a list of all available tables in the database
@@ -272,6 +272,38 @@ function App() {
         }
     };
 
+    const handleDeleteActiveTable = async () => {
+        if (!activeTable) return;
+
+        const confirmDelete = window.confirm(
+            `Are you sure you want to permanently delete table "${activeTable}"? This action cannot be undone.`,
+        );
+        if (!confirmDelete) return;
+
+        try {
+            setLoading(true);
+            // Видаляємо таблицю і передаємо dbSettings через властивість data
+            await axios.delete(`${backendUrl}/api/tables/${activeTable}`, {
+                data: { dbSettings: dbSettingsRef.current },
+            });
+
+            // Оновлюємо список таблиць
+            setAvailableTables((prev) =>
+                prev.filter((t) => t.name !== activeTable),
+            );
+            setActiveTable(''); // Скидаємо активну таблицю
+            setResults([]); // Очищуємо результати на екрані
+            alert('Table successfully deleted.');
+        } catch (error) {
+            console.error('Error deleting table:', error);
+            alert(
+                `Failed to delete table: ${error.response?.data?.error || error.message}`,
+            );
+        } finally {
+            setLoading(false);
+            fetchAvailableTables();
+        }
+    };
     /**
      * Persists atomic card modifications directly to the backend SQLite3 database.
      * @param {Object} updatedCard - The modified card entity with updated field rules
@@ -650,6 +682,7 @@ function App() {
                         availableTables={availableTables}
                         handleLoadTable={handleLoadTable}
                         setPageDelays={setPageDelays}
+                        handleDeleteActiveTable={handleDeleteActiveTable}
                     />
 
                     {/* Content Section & Product List Feed */}

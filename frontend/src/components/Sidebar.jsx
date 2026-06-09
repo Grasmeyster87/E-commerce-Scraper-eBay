@@ -24,7 +24,8 @@ export default function Sidebar({
     activeTable,
     availableTables,
     handleLoadTable,
-    setPageDelays,  
+    setPageDelays,
+    handleDeleteActiveTable,
 }) {
     // State to manage the expanded status of each menu section
     const [openSections, setOpenSections] = useState({
@@ -217,7 +218,7 @@ export default function Sidebar({
                                 }
                             }}
                             onLoadDefault={() => {
-                                setPageDelays([3000]); 
+                                setPageDelays([3000]);
                                 console.log(
                                     'Delay profile fallback restored to global defaults.',
                                 );
@@ -353,6 +354,15 @@ export default function Sidebar({
                                         </option>
                                     ))}
                                 </select>
+                                {activeTable && (
+                                    <button
+                                        onClick={handleDeleteActiveTable}
+                                        disabled={loading}
+                                        className="w-full text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-3 py-2 rounded-xl transition-colors cursor-pointer disabled:opacity-30 border border-red-500/20 font-mono text-[10px] font-bold uppercase tracking-wide"
+                                    >
+                                        Delete this table from DB
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}
