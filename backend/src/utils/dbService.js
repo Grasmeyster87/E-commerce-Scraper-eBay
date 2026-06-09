@@ -115,15 +115,37 @@ export class DBService {
      * @method createTableForQuery
      * @param {Object} dbSettings - Current storage database location variables.
      * @param {string} queryName - Search argument string used to compose the data layout table signature identifier.
+     * @param {string} [searchMode='query'] - Mode of search: 'query' or 'link'.
      * @returns {Promise<string>} Cleaned system identifier title of the provisioned table structure.
      */
-    static async createTableForQuery(dbSettings, queryName) {
+    static async createTableForQuery(dbSettings, queryName, searchMode = 'query') {
         const db = await this.connect(dbSettings);
-        const safeQuery = queryName
+
+        // Determine site name and search keyword
+        let siteName = 'ebay_com';
+        let keyword = queryName;
+
+        if (searchMode === 'link') {
+            try {
+                const urlObj = new URL(queryName);
+                // Extract hostname, e.g. www.ebay.com -> ebay_com
+                siteName = urlObj.hostname.replace(/^www\./i, '').replace(/\./g, '_');
+                // Try to get search keyword from eBay url param _nkw
+                keyword = urlObj.searchParams.get('_nkw') || 'link_search';
+            } catch (error) {
+                // Fallback if URL is invalid
+                keyword = 'link_search';
+            }
+        }
+
+        const safeQuery = keyword
             .replace(/[^a-zA-Z0-9]/g, '_')
             .substring(0, 30);
+            
+        // Format date as YYYY_MM_DDT... for uniqueness
         const timestamp = new Date().toISOString().replace(/[:.-]/g, '_');
-        const tableName = `tbl_${safeQuery}_${timestamp}`;
+        
+        const tableName = `tbl_${siteName}_${safeQuery}_${timestamp}`;
 
         const schema = `
             CREATE TABLE IF NOT EXISTS ${tableName} (

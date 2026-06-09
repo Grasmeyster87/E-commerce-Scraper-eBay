@@ -51,7 +51,7 @@ app.post('/api/scrape', async (req, res) => {
 
         // If this is the first search step OR the table name is missing for some reason — create it ONCE
         if (action === 'search' || !tableName) {
-            tableName = await DBService.createTableForQuery(dbSettings, query);
+            tableName = await DBService.createTableForQuery(dbSettings, query, searchMode);
             console.log(
                 `🗄️ CREATED ONE TABLE FOR THE ENTIRE QUERY: ${tableName}`,
             );
