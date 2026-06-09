@@ -14,7 +14,7 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// 1. MAIN SCRAPING AND DB SAVING PROCESS
+// MAIN SCRAPING AND DB SAVING PROCESS
 app.post('/api/scrape', async (req, res) => {
     const {
         query,
@@ -24,29 +24,29 @@ app.post('/api/scrape', async (req, res) => {
         itemsPerPage,
         activeTable,
         dbSettings,
-        pageDelays,  
-        currentPage, 
+        pageDelays,
+        currentPage,
     } = req.body;
     try {
         console.log(
             `🚀 Backend received -> Action: [${action.toUpperCase()}] | Table: ${activeTable || 'None'}`,
         );
 
-        // 1. Collect raw data from the website
+        // Collect raw data from the website
         const result = await runEbayScraper(
             query,
             searchMode,
             saveDebugHtml,
             action,
             itemsPerPage,
-            pageDelays,  
+            pageDelays,
             currentPage,
         );
 
-        // 2. Process the cards
+        // Process the cards
         const processedCards = CardService.processRawData(result.data);
 
-        // 3. Determine the table name
+        // Determine the table name
         let tableName = activeTable;
 
         // If this is the first search step OR the table name is missing for some reason — create it ONCE
@@ -61,7 +61,7 @@ app.post('/api/scrape', async (req, res) => {
             );
         }
 
-        // 4. Save cards to SQLite (they are appended to the same table)
+        // Save cards to SQLite (they are appended to the same table)
         if (processedCards.length > 0) {
             await DBService.insertCards(dbSettings, tableName, processedCards);
         }
@@ -79,7 +79,7 @@ app.post('/api/scrape', async (req, res) => {
     }
 });
 
-// 2. FETCH DATA (PAGINATION)
+// FETCH DATA (PAGINATION)
 app.post('/api/cards/list', async (req, res) => {
     const { dbSettings, tableName, page = 1, limit = 60 } = req.body;
     if (!tableName) return res.json({ cards: [], total: 0 });
@@ -98,7 +98,7 @@ app.post('/api/cards/list', async (req, res) => {
     }
 });
 
-// 3. FETCH LATEST TABLE (ON STARTUP)
+// FETCH LATEST TABLE (ON STARTUP)
 app.post('/api/tables/latest', async (req, res) => {
     const { dbSettings } = req.body;
     try {
@@ -109,7 +109,7 @@ app.post('/api/tables/latest', async (req, res) => {
     }
 });
 
-// 3.5 FETCH ALL TABLES WITH ROW COUNTS
+// FETCH ALL TABLES WITH ROW COUNTS
 app.post('/api/tables/list', async (req, res) => {
     const { dbSettings } = req.body;
     try {
@@ -120,7 +120,7 @@ app.post('/api/tables/list', async (req, res) => {
     }
 });
 
-// 4. UPDATE CARD (CHECKBOXES)
+// UPDATE CARD (CHECKBOXES)
 app.put('/api/cards/:id', async (req, res) => {
     const { id } = req.params;
     const { dbSettings, tableName, updates } = req.body;
@@ -132,7 +132,7 @@ app.put('/api/cards/:id', async (req, res) => {
     }
 });
 
-// 5. DATA EXPORT (Sourced from DB, not Frontend)
+// DATA EXPORT (Sourced from DB, not Frontend)
 app.post('/api/save', async (req, res) => {
     const { format, directory, dbSettings, tableName } = req.body;
     try {
@@ -211,4 +211,28 @@ app.get('/api/settings/delays', async (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`🟢 Server started: http://localhost:${PORT}`);
+});
+
+// Endpoint for deleting an active table from a database
+app.delete('/api/tables/:tableName', async (req, res) => {
+    const { tableName } = req.params;
+    // Getting the DB settings from the request body
+    const { dbSettings } = req.body;
+
+    if (!tableName || !tableName.startsWith('tbl_')) {
+        return res.status(400).json({ error: 'Invalid table name' });
+    }
+
+    try {
+        // We use the correct methods of your DBService
+        const db = await DBService.connect(dbSettings);
+        await DBService.run(db, `DROP TABLE IF EXISTS ${tableName}`);
+        db.close();
+
+        console.log(`🗑️ Table dropped from database: ${tableName}`);
+        res.json({ success: true, message: `Table ${tableName} successfully deleted.` });
+    } catch (error) {
+        console.error(`Error deleting table ${tableName}:`, error);
+        res.status(500).json({ error: error.message });
+    }
 });
