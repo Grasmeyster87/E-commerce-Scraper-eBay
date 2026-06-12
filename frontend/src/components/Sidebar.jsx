@@ -403,7 +403,7 @@ export default function Sidebar({
                                     SERIALIZE SINGLE EXPORT:
                                 </label>
                                 <div className="grid grid-cols-2 gap-2">
-                                    {['csv', 'json', 'xml', 'pdf'].map(
+                                    {['csv', 'json', 'xml', 'pdf', 'sqlite'].map(
                                         (fmt) => (
                                             <button
                                                 key={fmt}
