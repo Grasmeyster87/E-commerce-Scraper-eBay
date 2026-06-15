@@ -236,3 +236,29 @@ app.delete('/api/tables/:tableName', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// GET: Retrieve active visualization layout strategy profile
+app.get('/api/settings/visualizer-mode', async (req, res) => {
+    try {
+        const mode = await SettingsDBService.getVisualizerMode();
+        res.json({ mode });
+    } catch (error) {
+        console.error('❌ Error fetching visualizer layout mode:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// POST: Persist updated visualization layout strategy state profile
+app.post('/api/settings/visualizer-mode', async (req, res) => {
+    const { mode } = req.body;
+    try {
+        if (!['structural_ierar_block', 'structural_for_standart_date'].includes(mode)) {
+            return res.status(400).json({ error: 'Invalid visualization layout mode specified' });
+        }
+        await SettingsDBService.setVisualizerMode(mode);
+        res.json({ success: true, mode });
+    } catch (error) {
+        console.error('❌ Error saving visualizer layout mode:', error);
+        res.status(500).json({ error: error.message });
+    }
+});

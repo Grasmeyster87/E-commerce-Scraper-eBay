@@ -8,6 +8,81 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const serviceDbPath = path.join(__dirname, '../../config/servise_db.sqlite');
 
 export class SettingsDBService {
+    static async init() {
+        const db = await this.connect();
+
+        return new Promise((resolve, reject) => {
+            db.serialize(() => {
+                // Existing table for pagination delays (kept intact to prevent conflicts)
+                db.run(`
+                    CREATE TABLE IF NOT EXISTS page_delays (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        min_delay INTEGER,
+                        max_delay INTEGER
+                    )
+                `);
+
+                // NEW: Isolated schema for UI visualization state matrix
+                db.run(`
+                    CREATE TABLE IF NOT EXISTS visualizer_settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT
+                    )
+                `);
+
+                // Seed default layout mode if not initialized yet
+                db.run(`
+                    INSERT OR IGNORE INTO visualizer_settings (key, value)
+                    VALUES ('mode', 'structural_ierar_block')
+                `, (err) => {
+                    db.close();
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
+        });
+    }
+
+    /**
+     * Retrieves the saved layout mode configuration for the Matrix Visualizer.
+     * @returns {Promise<string>} The configured layout mode.
+     */
+    static async getVisualizerMode() {
+        const db = await this.connect();
+        return new Promise((resolve, reject) => {
+            db.get(
+                `SELECT value FROM visualizer_settings WHERE key = 'mode'`,
+                (err, row) => {
+                    db.close();
+                    if (err) reject(err);
+                    else resolve(row ? row.value : 'structural_ierar_block');
+                }
+            );
+        });
+    }
+
+    /**
+     * Persists the newly selected layout mode token in the SQLite store.
+     * @param {string} mode - Target layout strategy mode string.
+     */
+    static async setVisualizerMode(mode) {
+        const db = await this.connect();
+        return new Promise((resolve, reject) => {
+            db.run(
+                `
+                INSERT INTO visualizer_settings (key, value)
+                VALUES ('mode', ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+            `,
+                [mode],
+                (err) => {
+                    db.close();
+                    if (err) reject(err);
+                    else resolve();
+                }
+            );
+        });
+    }
     /**
      * Initializes a connection to the servise_db.sqlite database.
      */
