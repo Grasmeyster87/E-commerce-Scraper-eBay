@@ -21,7 +21,8 @@ export class StructuralParser {
                     'srp-river-answer--BASIC_PAGINATION_V2',
                 ) ||
                 li.querySelector('.s-pagination') ||
-                li.innerText.includes('Items Per Page')
+                li.innerText.includes('Items Per Page')||
+                li.querySelector('ul')
             ) {
                 return null;
             }

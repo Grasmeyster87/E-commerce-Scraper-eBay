@@ -51,7 +51,7 @@ export async function runEbayScraper(
                     );
             });
 
-            for (let attempt = 1; attempt <= 7; attempt++) {
+            for (let attempt = 1; attempt <= 10; attempt++) {
                 try {
                     await delay(1000);
                     browser = await puppeteer.connect({
@@ -60,7 +60,7 @@ export async function runEbayScraper(
                     });
                     break;
                 } catch (connectError) {
-                    if (attempt === 7)
+                    if (attempt === 10)
                         throw new Error(
                             'Chrome took too long to launch and bind port 9222.',
                         );
