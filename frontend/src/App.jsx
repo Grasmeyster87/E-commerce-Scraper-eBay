@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { CardService } from './services/CardService';
 import DataTable from './components/DataTable';
@@ -420,6 +420,42 @@ function App() {
         { id: 'pdf', name: 'Export PDF', status: 'idle', path: '' },
     ]);
 
+    // NEW: State for Matrix Visualizer layout strategy to avoid naming conflict with global viewMode
+    const [visualizerLayout, setVisualizerLayout] = React.useState(
+        'structural_ierar_block',
+    );
+
+    // NEW: Fetch saved visualization layout mode from SQLite service database configuration on mount
+    React.useEffect(() => {
+        fetch('http://localhost:5050/api/settings/visualizer-mode')
+            .then((res) => res.json())
+            .then((data) => {
+                if (data && data.mode) {
+                    setVisualizerLayout(data.mode);
+                }
+            })
+            .catch((err) =>
+                console.error('Failed to load visualizer settings:', err),
+            );
+    }, []);
+
+    // NEW: Handle layout radio toggle actions and synchronize state to backend service SQLite store
+    const handleVisualizerLayoutChange = async (mode) => {
+        setVisualizerLayout(mode);
+        try {
+            await fetch('http://localhost:5050/api/settings/visualizer-mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode }),
+            });
+        } catch (err) {
+            console.error(
+                'Failed to persist updated visualizer layout mode settings:',
+                err,
+            );
+        }
+    };
+
     /**
      * Asynchronously triggers serial exports for all supported document variations.
      * Iterates dynamically over target steps updating modal status tickers.
@@ -536,22 +572,70 @@ function App() {
                 <h1 className="text-xl font-bold text-cyan-400 text-center mb-4">
                     Data Table Output
                 </h1>
-                <div className="flex items-center justify-center gap-2 flex-wrap mb-4">
-                    <button
-                        onClick={handleSaveAllFormats}
-                        className="bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 text-white font-semibold text-xs py-2 px-4 rounded-xl shadow-lg transition-all"
-                    >
-                        ⚡ Save All Formats
-                    </button>
-                    {['csv', 'json', 'sqlite', 'xml', 'pdf'].map((fmt) => (
+
+                {/* TOP CONTROL BAR: Radio Buttons (Left) & Export Buttons (Right) */}
+                <div className="flex items-center justify-between w-full mb-4 gap-4 flex-wrap">
+                    {/* LEFT: Layout Strategy Toggle */}
+                    <div className="flex items-center gap-4 text-xs font-semibold text-slate-300 bg-slate-900/50 p-2 rounded-xl border border-slate-800">
+                        <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">
+                            Layout:
+                        </span>
+                        <label className="flex items-center gap-1.5 cursor-pointer hover:text-cyan-400 transition-colors">
+                            <input
+                                type="radio"
+                                name="visualizer_layout_strategy"
+                                value="structural_ierar_block"
+                                checked={
+                                    visualizerLayout ===
+                                    'structural_ierar_block'
+                                }
+                                onChange={() =>
+                                    handleVisualizerLayoutChange(
+                                        'structural_ierar_block',
+                                    )
+                                }
+                                className="w-3.5 h-3.5 accent-cyan-500 cursor-pointer"
+                            />
+                            <span>Hierarchical Blocks</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer hover:text-cyan-400 transition-colors">
+                            <input
+                                type="radio"
+                                name="visualizer_layout_strategy"
+                                value="structural_for_standart_date"
+                                checked={
+                                    visualizerLayout ===
+                                    'structural_for_standart_date'
+                                }
+                                onChange={() =>
+                                    handleVisualizerLayoutChange(
+                                        'structural_for_standart_date',
+                                    )
+                                }
+                                className="w-3.5 h-3.5 accent-cyan-500 cursor-pointer"
+                            />
+                            <span>Standard Columns (Split B1)</span>
+                        </label>
+                    </div>
+
+                    {/* RIGHT: Export Buttons */}
+                    <div className="flex items-center gap-2 flex-wrap">
                         <button
-                            key={fmt}
-                            onClick={() => handleSaveData(fmt)}
-                            className="bg-slate-900 border border-slate-800 text-slate-300 text-[11px] font-bold py-1.5 px-3 rounded-lg uppercase hover:bg-slate-800"
+                            onClick={handleSaveAllFormats}
+                            className="bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 text-white font-semibold text-xs py-2 px-4 rounded-xl shadow-lg transition-all"
                         >
-                            {fmt}
+                            ⚡ Save All Formats
                         </button>
-                    ))}
+                        {['csv', 'json', 'sqlite', 'xml', 'pdf'].map((fmt) => (
+                            <button
+                                key={fmt}
+                                onClick={() => handleSaveData(fmt)}
+                                className="bg-slate-900 border border-slate-800 text-slate-300 text-[11px] font-bold py-1.5 px-3 rounded-lg uppercase hover:bg-slate-800 transition-colors"
+                            >
+                                {fmt}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
                 <DataTable
@@ -567,6 +651,7 @@ function App() {
                     }
                     itemsPerPageSelection={itemsPerPageSelection}
                     onClose={() => setIsTableRoute(false)}
+                    visualizerLayout={visualizerLayout}
                 />
 
                 <ProgressModal

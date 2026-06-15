@@ -1,4 +1,4 @@
-import { useState} from 'react';
+import { useState } from 'react';
 
 /**
  * DataTable Component
@@ -11,6 +11,7 @@ import { useState} from 'react';
  * @param {Function} onDeleteCell - Callback to remove a single cell by card ID and semantic path.
  * @param {number} itemsPerPageSelection - Number of rows displayed per table page.
  * @param {Function} onClose - Callback to return to the card feed view.
+ * @param {string} visualizerLayout - Layout strategy mode for rendering standard or unified columns.
  */
 export default function DataTable({
     results,
@@ -19,6 +20,7 @@ export default function DataTable({
     onDeleteCell,
     itemsPerPageSelection,
     onClose,
+    visualizerLayout = 'structural_ierar_block', // <--- ДОДАНО НОВИЙ ПРОП
 }) {
     // Filter results to only include cards marked for saving
     const activeCards = results.filter((c) => c.cardChecked);
@@ -77,6 +79,66 @@ export default function DataTable({
         colDisplayNumbers[col] = blockCounters[b]++;
     });
 
+    // --- NEW: SEMANTIC BLOCK 1 CLASSIFIER LOGIC ---
+    const isStandardMode = visualizerLayout === 'structural_for_standart_date';
+    
+    // Separate native columns into B1 (for splitting) and the rest (B2, B3, etc. for normal mapping)
+    const otherColumns = columns.filter(c => !c.startsWith('B1_'));
+    const activeColumnsToMap = isStandardMode ? otherColumns : columns;
+
+    /**
+     * Evaluates a single token descriptor node and maps it into one of the 7 predefined slots.
+     * @param {Object} line - Target node layout artifact.
+     * @returns {number} Evaluated semantic index category slot identifier (1 to 7).
+     */
+    const classifyBlock1Token = (line) => {
+        const textLower = (line.text || '').toLowerCase().trim();
+        const tagsPath = (line.htmlTagsPath || '').toLowerCase();
+
+        if (!textLower) return 7;
+
+        // 1. New Listing markers
+        if (textLower === 'new listing' || textLower.includes('new listing')) return 1;
+
+        // 2. Price drop anomalies markers
+        if (textLower === 'new low price' || textLower.includes('new low price')) return 2;
+
+        // 3. Core Product Title (prioritizes metadata keywords or primary styling flags)
+        if (tagsPath.includes('primary') || /\btitle\b/.test(tagsPath) || tagsPath.includes('__title')) return 3;
+
+        // 4. Standard commercial item condition terms mapping
+        const commercialConditions = [
+            'brand new', 'pre-owned', 'new (other)', 'good - refurbished',
+            'very good - refurbished', 'excellent - refurbished', 'open box',
+            'used', 'seller refurbished', 'for parts or not working',
+            'certified refurbished', 'like new'
+        ];
+        if (commercialConditions.some(cond => textLower === cond || textLower.includes(cond))) return 4;
+
+        // 5. Core marketplace ratings and feedback indicators
+        if (textLower.includes('rating') || textLower.includes('★') || textLower.includes('stars') || /^\d+(\.\d+)?\s*(out of 5|stars)/i.test(textLower)) return 5;
+
+        // 6. Specific product edition classification
+        if (textLower.includes('standard edition')) return 6;
+
+        // Fallback heuristic for product title recognition
+        if (textLower.length > 25 && !textLower.includes('ebay') && !textLower.includes('stock') && !textLower.includes('feedback')) return 3;
+
+        // 7. Remainder / Auxiliary custom listing strings
+        return 7;
+    };
+
+    // Static definitions for the 7 new split columns
+    const standardB1Headers = [
+        { id: 1, label: '1. New Listing', bg: 'bg-blue-900/10' },
+        { id: 2, label: '2. Low Price', bg: 'bg-red-900/10' },
+        { id: 3, label: '3. Product Title', bg: 'bg-indigo-900/10' },
+        { id: 4, label: '4. Condition', bg: 'bg-emerald-900/10' },
+        { id: 5, label: '5. Ratings', bg: 'bg-amber-900/10' },
+        { id: 6, label: '6. Edition', bg: 'bg-purple-900/10' },
+        { id: 7, label: '7. Other Data', bg: 'bg-slate-800/30' },
+    ];
+
     return (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl flex flex-col h-[calc(100vh-6rem)]">
             {/* --- TABLE CONTROL BAR --- */}
@@ -102,9 +164,7 @@ export default function DataTable({
                         {tablePage} / {totalPages}
                     </span>
                     <button
-                        onClick={() =>
-                            setTablePage((p) => Math.min(totalPages, p + 1))
-                        }
+                        onClick={() => setTablePage((p) => Math.min(totalPages, p + 1))}
                         disabled={tablePage === totalPages}
                         className="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-800 disabled:text-slate-500 text-white px-3 py-1 rounded-md transition-colors"
                     >
@@ -123,20 +183,26 @@ export default function DataTable({
                     {/* Fixed Header */}
                     <thead className="bg-slate-950/95 sticky top-0 z-10 shadow-sm border-b border-slate-800">
                         <tr>
-                            <th className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-16 text-center">
-                                №
-                            </th>
-                            <th className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-32">
-                                Entity ID
-                            </th>
+                            <th rowSpan={isStandardMode ? 2 : 1} className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-16 text-center">№</th>
+                            <th rowSpan={isStandardMode ? 2 : 1} className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-32">Entity ID</th>
 
-                            {columns.map((col) => {
-                                // Extract hover preview path for column headers
+                            {/* Standard B1 Split Headers - Row 1 (Block Grouping) */}
+                            {isStandardMode && standardB1Headers.map((header) => (
+                                <th key={`std-header-r1-${header.id}`} className={`p-2 border-r border-slate-800/50 font-mono text-xs text-indigo-300 relative group w-10 min-w-15 ${header.bg} ${isStandardMode ? 'border-b' : ''}`}>
+                                    <div className="flex justify-center items-center h-full px-2">
+                                        <div className="flex flex-col items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity text-center">
+                                            <span className="text-[10px] text-slate-500 leading-none">Block 1</span>
+                                            <span className="font-bold text-slate-300">{header.id}</span>
+                                        </div>
+                                    </div>
+                                </th>
+                            ))}
+
+                            {/* Dynamic Headers (Unified or Remainder) */}
+                            {activeColumnsToMap.map((col) => {
                                 let samplePath = col;
                                 for (const c of activeCards) {
-                                    const l = c.lines.find(
-                                        (x) => x.semanticPath === col,
-                                    );
+                                    const l = c.lines.find((x) => x.semanticPath === col);
                                     if (l && l.htmlTagsPath) {
                                         samplePath = l.htmlTagsPath;
                                         break;
@@ -148,37 +214,19 @@ export default function DataTable({
                                 let blockNum = 'Field';
                                 let bgClass = '';
                                 if (match) {
-                                    blockNum =
-                                        match[1] === '99'
-                                            ? 'Other'
-                                            : `Block ${match[1]}`;
-                                    if (match[1] === '1')
-                                        bgClass = 'bg-blue-900/10 border-blue-800/30';
-                                    else if (match[1] === '2')
-                                        bgClass = 'bg-emerald-900/10 border-emerald-800/30';
-                                    else if (match[1] === '3')
-                                        bgClass = 'bg-purple-900/10 border-purple-800/30';
+                                    blockNum = match[1] === '99' ? 'Other' : `Block ${match[1]}`;
+                                    if (match[1] === '1') bgClass = 'bg-blue-900/10 border-blue-800/30';
+                                    else if (match[1] === '2') bgClass = 'bg-emerald-900/10 border-emerald-800/30';
+                                    else if (match[1] === '3') bgClass = 'bg-purple-900/10 border-purple-800/30';
                                 }
 
                                 return (
-                                    <th
-                                        key={col}
-                                        className={`p-2 border-r border-slate-800/50 font-mono text-xs text-indigo-300 relative group w-10 min-w-15 ${bgClass}`}
-                                    >
-                                        <div
-                                            className="flex justify-center items-center h-full cursor-help px-2"
-                                            title={samplePath}
-                                        >
+                                    <th key={col} rowSpan={isStandardMode ? 2 : 1} className={`p-2 border-r border-slate-800/50 font-mono text-xs text-indigo-300 relative group w-10 min-w-15 ${bgClass}`}>
+                                        <div className="flex justify-center items-center h-full cursor-help px-2" title={samplePath}>
                                             <div className="flex flex-col items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                                                <span className="text-[10px] text-slate-500 leading-none">
-                                                    {blockNum}
-                                                </span>
-                                                <span className="font-bold text-slate-300">
-                                                    {displayTitle}
-                                                </span>
+                                                <span className="text-[10px] text-slate-500 leading-none">{blockNum}</span>
+                                                <span className="font-bold text-slate-300">{displayTitle}</span>
                                             </div>
-
-                                            {/* Column Deletion Action */}
                                             <button
                                                 onClick={() => onDeleteColumn(col)}
                                                 className="text-red-500 hover:text-red-400 bg-red-500/10 hover:bg-red-500/20 w-5 h-5 flex justify-center items-center rounded font-sans font-bold text-xs transition-all opacity-0 group-hover:opacity-100 absolute top-1 right-1"
@@ -191,57 +239,73 @@ export default function DataTable({
                                 );
                             })}
                         </tr>
+
+                        {/* SECOND ROW (Only in Standard Mode) */}
+                        {isStandardMode && (
+                            <tr>
+                                {standardB1Headers.map((header) => (
+                                    <th key={`std-header-r2-${header.id}`} className={`p-1.5 border-r border-slate-800/50 font-mono text-xs text-indigo-300 relative ${header.bg}`}>
+                                        <div className="flex flex-col items-center justify-center opacity-80 text-center">
+                                            <span className="font-bold text-slate-300 whitespace-nowrap text-[10px] px-1">{header.label}</span>
+                                        </div>
+                                    </th>
+                                ))}
+                            </tr>
+                        )}
                     </thead>
                     
                     {/* Table Body */}
                     <tbody className="divide-y divide-slate-800/50">
                         {displayedCards.map((card, idx) => {
-                            // Calculate global row index across all paginated views
-                            const absoluteIndex =
-                                (tablePage - 1) * itemsPerPage + idx + 1;
+                            const absoluteIndex = (tablePage - 1) * itemsPerPage + idx + 1;
+
+                            // Group B1 elements if in Standard Mode
+                            const b1Slots = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] };
+                            if (isStandardMode) {
+                                card.lines.forEach(line => {
+                                    if (line.checked && !line.isHtmlTag && line.semanticPath?.startsWith('B1_')) {
+                                        const slotId = classifyBlock1Token(line);
+                                        b1Slots[slotId].push(line);
+                                    }
+                                });
+                            }
 
                             return (
-                                <tr
-                                    key={card.id}
-                                    className="hover:bg-slate-800/40 transition-colors"
-                                >
-                                    {/* Row Index & Delete Action */}
+                                <tr key={card.id} className="hover:bg-slate-800/40 transition-colors">
                                     <td className="p-3 border-r border-slate-800 text-center font-medium bg-slate-950/20 sticky left-0">
                                         <div className="flex items-center justify-center gap-2">
-                                            <span className="text-slate-400">
-                                                {absoluteIndex}
-                                            </span>
-                                            <button
-                                                onClick={() => onDeleteRow(card.id)}
-                                                className="text-red-500 hover:text-red-400 w-5 h-5 rounded hover:bg-red-500/10 font-sans font-bold text-xs transition-colors flex items-center justify-center"
-                                                title="Exclude entity from export"
-                                            >
-                                                ✕
-                                            </button>
+                                            <span className="text-slate-400">{absoluteIndex}</span>
+                                            <button onClick={() => onDeleteRow(card.id)} className="text-red-500 hover:text-red-400 w-5 h-5 rounded hover:bg-red-500/10 font-sans font-bold text-xs transition-colors flex items-center justify-center" title="Exclude entity from export">✕</button>
                                         </div>
                                     </td>
-
-                                    {/* Entity Identifier (Link) */}
                                     <td className="p-3 border-r border-slate-800 bg-slate-950/20">
-                                        <a
-                                            href={card.url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                            className="text-cyan-500 hover:underline font-mono text-xs"
-                                        >
-                                            {card.id}
-                                        </a>
+                                        <a href={card.url} target="_blank" rel="noreferrer" className="text-cyan-500 hover:underline font-mono text-xs">{card.id}</a>
                                     </td>
 
-                                    {/* Dynamic Data Cells */}
-                                    {columns.map((col) => {
-                                        const line = card.lines.find(
-                                            (l) =>
-                                                l.semanticPath === col &&
-                                                !l.isHtmlTag &&
-                                                l.checked,
-                                        );
+                                    {/* Render Structured Standard B1 Columns */}
+                                    {isStandardMode && standardB1Headers.map((header) => (
+                                        <td key={`std-cell-${header.id}`} className={`p-3 border-r border-slate-800/40 whitespace-nowrap min-w-37.5 group/cell relative ${header.bg}`}>
+                                            <div className="flex flex-col gap-2 min-h-6 justify-center">
+                                                {b1Slots[header.id].map((line, i) => (
+                                                    <div key={i} className="flex items-center justify-between gap-4 group/std" title={line.htmlTagsPath}>
+                                                        <span className="text-slate-200 font-medium">{line.text}</span>
+                                                        <button 
+                                                            onClick={() => onDeleteCell(card.id, line.semanticPath)} 
+                                                            className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/std:opacity-100 flex items-center justify-center shrink-0"
+                                                            title="Clear cell content"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {b1Slots[header.id].length === 0 && <span className="text-slate-700 select-none flex justify-center">-</span>}
+                                            </div>
+                                        </td>
+                                    ))}
 
+                                    {/* Render Unified / Remainder Columns */}
+                                    {activeColumnsToMap.map((col) => {
+                                        const line = card.lines.find((l) => l.semanticPath === col && !l.isHtmlTag && l.checked);
                                         const match = col.match(/^B(\d+)_/);
                                         let bgClass = '';
                                         if (match) {
@@ -251,18 +315,10 @@ export default function DataTable({
                                         }
 
                                         return (
-                                            <td
-                                                key={col}
-                                                className={`p-3 border-r border-slate-800/40 whitespace-nowrap min-w-37.5 group/cell relative ${bgClass}`}
-                                            >
+                                            <td key={col} className={`p-3 border-r border-slate-800/40 whitespace-nowrap min-w-37.5 group/cell relative ${bgClass}`}>
                                                 {line ? (
-                                                    <div
-                                                        className="flex items-center justify-between gap-4"
-                                                        title={line.htmlTagsPath || ''}
-                                                    >
-                                                        <span className="text-slate-200 font-medium wrap-break-word line-clamp-3">
-                                                            {line.text}
-                                                        </span>
+                                                    <div className="flex items-center justify-between gap-4" title={line.htmlTagsPath || ''}>
+                                                        <span className="text-slate-200 font-medium">{line.text}</span>
                                                         <button
                                                             onClick={() => onDeleteCell(card.id, col)}
                                                             className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/cell:opacity-100 flex items-center justify-center shrink-0"
@@ -272,9 +328,7 @@ export default function DataTable({
                                                         </button>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-slate-700 select-none flex justify-center">
-                                                        -
-                                                    </span>
+                                                    <span className="text-slate-700 select-none flex justify-center">-</span>
                                                 )}
                                             </td>
                                         );
