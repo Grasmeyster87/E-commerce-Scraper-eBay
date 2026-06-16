@@ -111,7 +111,8 @@ export default function DataTable({
             'brand new', 'pre-owned', 'new (other)', 'good - refurbished',
             'very good - refurbished', 'excellent - refurbished', 'open box',
             'used', 'seller refurbished', 'for parts or not working',
-            'certified refurbished', 'like new'
+            'certified refurbished', 'like new', 'new without tags', 'nwot',
+            'new with tags', 'nwt', 'refurbished', 'new other (see details)'
         ];
         if (commercialConditions.some(cond => textLower === cond || textLower.includes(cond))) return 4;
 

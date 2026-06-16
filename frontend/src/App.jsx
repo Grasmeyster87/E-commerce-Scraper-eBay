@@ -439,7 +439,7 @@ function App() {
             );
     }, []);
 
-    // NEW: Handle layout radio toggle actions and synchronize state to backend service SQLite store
+    // Handle layout radio toggle actions and synchronize state to backend service SQLite store
     const handleVisualizerLayoutChange = async (mode) => {
         setVisualizerLayout(mode);
         try {
