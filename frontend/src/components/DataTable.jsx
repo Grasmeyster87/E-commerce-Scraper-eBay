@@ -20,7 +20,7 @@ export default function DataTable({
     onDeleteCell,
     itemsPerPageSelection,
     onClose,
-    visualizerLayout = 'structural_ierar_block', // <--- ДОДАНО НОВИЙ ПРОП
+    visualizerLayout = 'structural_for_standart_date', // <--- ДОДАНО НОВИЙ ПРОП
 }) {
     // Filter results to only include cards marked for saving
     const activeCards = results.filter((c) => c.cardChecked);
@@ -82,9 +82,59 @@ export default function DataTable({
     // --- NEW: SEMANTIC BLOCK 1 CLASSIFIER LOGIC ---
     const isStandardMode = visualizerLayout === 'structural_for_standart_date';
     
+    const isObfuscatedSponsored = (text) => {
+        if (!text) return false;
+        const lower = text.toLowerCase();
+        const lettersOnly = lower.replace(/[^a-z]/g, '');
+        if (lettersOnly === 'sponsored' || lettersOnly === 'derosnops') return true;
+        const sorted = lettersOnly.split('').sort().join('');
+        if (sorted === 'denooprss') return true;
+        return false;
+    };
+
     // Separate native columns into B1 (for splitting) and the rest (B2, B3, etc. for normal mapping)
     const otherColumns = columns.filter(c => !c.startsWith('B1_'));
-    const activeColumnsToMap = isStandardMode ? otherColumns : columns;
+    let activeColumnsToMap = isStandardMode ? otherColumns : columns;
+
+    if (isStandardMode) {
+        let hasSponsored = false;
+        // Find B3 columns that are EXCLUSIVELY sponsored, so we can hide them completely
+        const exclusivelySponsoredB3Cols = new Set();
+        otherColumns.forEach(col => {
+            if (col.startsWith('B3_')) {
+                let hasData = false;
+                let allSponsored = true;
+                for (const card of activeCards) {
+                    const line = card.lines.find(l => l.semanticPath === col && !l.isHtmlTag && l.checked);
+                    if (line) {
+                        hasData = true;
+                        if (isObfuscatedSponsored(line.text)) {
+                            hasSponsored = true;
+                        } else {
+                            allSponsored = false;
+                        }
+                    }
+                }
+                if (hasData && allSponsored) {
+                    exclusivelySponsoredB3Cols.add(col);
+                }
+            }
+        });
+        activeColumnsToMap = activeColumnsToMap.filter(col => !exclusivelySponsoredB3Cols.has(col));
+        
+        if (hasSponsored) {
+            activeColumnsToMap.push('B3_Sponsored');
+            activeColumnsToMap.sort((a, b) => {
+                const matchA = a.match(/^B(\d+)_/);
+                const matchB = b.match(/^B(\d+)_/);
+                if (matchA && matchB) {
+                    if (matchA[1] !== matchB[1]) return parseInt(matchA[1]) - parseInt(matchB[1]);
+                }
+                return a.localeCompare(b);
+            });
+            colDisplayNumbers['B3_Sponsored'] = 'Sponsored';
+        }
+    }
 
     /**
      * Evaluates a single token descriptor node and maps it into one of the 7 predefined slots.
@@ -306,7 +356,17 @@ export default function DataTable({
 
                                     {/* Render Unified / Remainder Columns */}
                                     {activeColumnsToMap.map((col) => {
-                                        const line = card.lines.find((l) => l.semanticPath === col && !l.isHtmlTag && l.checked);
+                                        let line = null;
+                                        if (col === 'B3_Sponsored') {
+                                            line = card.lines.find((l) => l.semanticPath?.startsWith('B3_') && !l.isHtmlTag && l.checked && isObfuscatedSponsored(l.text));
+                                        } else {
+                                            line = card.lines.find((l) => 
+                                                l.semanticPath === col && 
+                                                !l.isHtmlTag && 
+                                                l.checked && 
+                                                !(isStandardMode && col.startsWith('B3_') && isObfuscatedSponsored(l.text))
+                                            );
+                                        }
                                         const match = col.match(/^B(\d+)_/);
                                         let bgClass = '';
                                         if (match) {
@@ -321,7 +381,13 @@ export default function DataTable({
                                                     <div className="flex items-center justify-between gap-4" title={line.htmlTagsPath || ''}>
                                                         <span className="text-slate-200 font-medium">{line.text}</span>
                                                         <button
-                                                            onClick={() => onDeleteCell(card.id, col)}
+                                                            onClick={() => {
+                                                                if (col === 'B3_Sponsored') {
+                                                                    onDeleteCell(card.id, line.semanticPath);
+                                                                } else {
+                                                                    onDeleteCell(card.id, col);
+                                                                }
+                                                            }}
                                                             className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/cell:opacity-100 flex items-center justify-center shrink-0"
                                                             title="Clear cell content"
                                                         >

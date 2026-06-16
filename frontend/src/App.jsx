@@ -422,7 +422,7 @@ function App() {
 
     // NEW: State for Matrix Visualizer layout strategy to avoid naming conflict with global viewMode
     const [visualizerLayout, setVisualizerLayout] = React.useState(
-        'structural_ierar_block',
+        'structural_for_standart_date',
     );
 
     // NEW: Fetch saved visualization layout mode from SQLite service database configuration on mount
