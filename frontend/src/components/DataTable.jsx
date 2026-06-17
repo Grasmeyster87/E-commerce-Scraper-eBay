@@ -20,7 +20,7 @@ export default function DataTable({
     onDeleteCell,
     itemsPerPageSelection,
     onClose,
-    visualizerLayout = 'structural_for_standart_date', // <--- ДОДАНО НОВИЙ ПРОП
+    visualizerLayout = 'structural_for_standart_date',
 }) {
     // Filter results to only include cards marked for saving
     const activeCards = results.filter((c) => c.cardChecked);
@@ -79,9 +79,9 @@ export default function DataTable({
         colDisplayNumbers[col] = blockCounters[b]++;
     });
 
-    // --- NEW: SEMANTIC BLOCK 1 CLASSIFIER LOGIC ---
+    // --- SEMANTIC BLOCK 1 CLASSIFIER LOGIC ---
     const isStandardMode = visualizerLayout === 'structural_for_standart_date';
-    
+
     const isObfuscatedSponsored = (text) => {
         if (!text) return false;
         const lower = text.toLowerCase();
@@ -92,8 +92,10 @@ export default function DataTable({
         return false;
     };
 
-    // Separate native columns into B1 (for splitting) and the rest (B2, B3, etc. for normal mapping)
-    const otherColumns = columns.filter(c => !c.startsWith('B1_'));
+    // Filter out B1 and B2 columns in standard mode as they are displayed in structured slots
+    const otherColumns = columns.filter(c => 
+        isStandardMode ? (!c.startsWith('B1_') && !c.startsWith('B2_')) : true
+    );
     let activeColumnsToMap = isStandardMode ? otherColumns : columns;
 
     if (isStandardMode) {
@@ -121,7 +123,7 @@ export default function DataTable({
             }
         });
         activeColumnsToMap = activeColumnsToMap.filter(col => !exclusivelySponsoredB3Cols.has(col));
-        
+
         if (hasSponsored) {
             activeColumnsToMap.push('B3_Sponsored');
             activeColumnsToMap.sort((a, b) => {
@@ -162,7 +164,7 @@ export default function DataTable({
             'very good - refurbished', 'excellent - refurbished', 'open box',
             'used', 'seller refurbished', 'for parts or not working',
             'certified refurbished', 'like new', 'new without tags', 'nwot',
-            'new with tags', 'nwt', 'refurbished', 'new other (see details)'
+            'new with tags', 'nwt', 'refurbished', 'new other (see details)', 'ebay refurbished',
         ];
         if (commercialConditions.some(cond => textLower === cond || textLower.includes(cond))) return 4;
 
@@ -179,6 +181,74 @@ export default function DataTable({
         return 7;
     };
 
+    /**
+     * CLASSIFIER FOR BLOCK 2 PRIMARY
+     * Maps data from su-card-container__attributes__primary into 11 columns
+     * @param {Object} line - Target node layout artifact.
+     * @returns {number} Evaluated semantic index category slot identifier (1 to 11).
+     */
+    const classifyBlock2PrimaryToken = (line) => {
+        const text = (line.text || '').trim();
+        const textLower = text.toLowerCase();
+
+        // 1. Time Left: format 5d 12h left (Mon, 09:04 PM)
+        if (textLower.includes('left') || (text.startsWith('(') && text.endsWith(')') && (textLower.includes('am') || textLower.includes('pm')))) return 1;
+        
+        // 2. Prices
+        if (text.startsWith('$') && !textLower.includes('delivery') && !textLower.includes('shipping')) return 2;
+
+        // 3. Bids: Matches both singular and plural forms like "0 bids", "1 bid", "14 bids"
+        if (textLower.includes('bid')) return 3;
+
+        // 4. Buy It Now / or Best Offer
+        if (textLower === 'buy it now' || textLower === 'or best offer') return 4;
+
+        // 5. Delivery / Shipping / delivery
+        if (textLower.includes('delivery') || textLower.includes('shipping')) return 5;
+
+        // 6. Located in
+        if (textLower.includes('located')) return 6;
+
+        // 7. Sold
+        if (textLower.includes('sold')) return 7;
+
+        // 8. Watchers
+        if (textLower.includes('watchers')) return 8;
+
+        // 9. Save
+        if (textLower.includes('save')) return 9;
+
+        // 10. Customs
+        if (textLower.includes('customs services and international tracking provided')) return 10;
+
+        // 11. Specific standard phrases forced into block 11 
+        const standardPhrases = ['last one', 'free returns', 'almost gone'];
+        if (standardPhrases.includes(textLower)) return 11;
+
+        // 11. Other data
+        return 11;
+    };
+
+    /**
+     * CLASSIFIER FOR BLOCK 2 SECONDARY
+     * Maps data from su-card-container__attributes__secondary into 3 columns
+     * @param {Object} line - Target node layout artifact.
+     * @param {number} indexInBlock - Index of the line within its block.
+     * @returns {number} Evaluated semantic index category slot identifier (1 to 3).
+     */
+    const classifyBlock2SecondaryToken = (line, indexInBlock) => {
+        const textLower = (line.text || '').toLowerCase().trim();
+
+        // 2. Positive feedback
+        if (textLower.includes('positive')) return 2;
+
+        // 1. Nickname (Usually the first element if not positive feedback)
+        if (indexInBlock === 0 && !textLower.includes('positive')) return 1;
+
+        // 3. Other data
+        return 3;
+    };
+
     // Static definitions for the 7 new split columns
     const standardB1Headers = [
         { id: 1, label: '1. New Listing', bg: 'bg-blue-900/10' },
@@ -188,6 +258,28 @@ export default function DataTable({
         { id: 5, label: '5. Ratings', bg: 'bg-amber-900/10' },
         { id: 6, label: '6. Edition', bg: 'bg-purple-900/10' },
         { id: 7, label: '7. Other Data', bg: 'bg-slate-800/30' },
+    ];
+
+    // Static definitions for Block 2 Primary split columns (11 columns)
+    const standardB2PrimaryHeaders = [
+        { id: 1, label: '1. Time Left', bg: 'bg-emerald-900/10' },
+        { id: 2, label: '2. Price', bg: 'bg-emerald-900/10' },
+        { id: 3, label: '3. Bids', bg: 'bg-emerald-900/10' },
+        { id: 4, label: '4. Format', bg: 'bg-emerald-900/10' },
+        { id: 5, label: '5. Shipping', bg: 'bg-emerald-900/10' },
+        { id: 6, label: '6. Location', bg: 'bg-emerald-900/10' },
+        { id: 7, label: '7. Sold', bg: 'bg-emerald-900/10' },
+        { id: 8, label: '8. Watchers', bg: 'bg-emerald-900/10' },
+        { id: 9, label: '9. Save', bg: 'bg-emerald-900/10' },
+        { id: 10, label: '10. Customs', bg: 'bg-emerald-900/10' },
+        { id: 11, label: '11. Other', bg: 'bg-emerald-900/10' },
+    ];
+
+    // Static definitions for Block 2 Secondary split columns (3 columns)
+    const standardB2SecondaryHeaders = [
+        { id: 1, label: '1. Nickname', bg: 'bg-teal-900/10' },
+        { id: 2, label: '2. Positive %', bg: 'bg-teal-900/10' },
+        { id: 3, label: '3. Other', bg: 'bg-teal-900/10' },
     ];
 
     return (
@@ -239,10 +331,34 @@ export default function DataTable({
 
                             {/* Standard B1 Split Headers - Row 1 (Block Grouping) */}
                             {isStandardMode && standardB1Headers.map((header) => (
-                                <th key={`std-header-r1-${header.id}`} className={`p-2 border-r border-slate-800/50 font-mono text-xs text-indigo-300 relative group w-10 min-w-15 ${header.bg} ${isStandardMode ? 'border-b' : ''}`}>
+                                <th key={`std-header-b1-r1-${header.id}`} className={`p-2 border-r border-slate-800/50 font-mono text-xs text-indigo-300 relative group w-10 min-w-15 ${header.bg} border-b`}>
                                     <div className="flex justify-center items-center h-full px-2">
                                         <div className="flex flex-col items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity text-center">
                                             <span className="text-[10px] text-slate-500 leading-none">Block 1</span>
+                                            <span className="font-bold text-slate-300">{header.id}</span>
+                                        </div>
+                                    </div>
+                                </th>
+                            ))}
+
+                            {/* Standard B2 Primary Split Headers - Row 1 */}
+                            {isStandardMode && standardB2PrimaryHeaders.map((header) => (
+                                <th key={`std-header-b2p-r1-${header.id}`} className={`p-2 border-r border-slate-800/50 font-mono text-xs text-emerald-300 relative group w-10 min-w-15 ${header.bg} border-b`}>
+                                    <div className="flex justify-center items-center h-full px-2">
+                                        <div className="flex flex-col items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity text-center">
+                                            <span className="text-[10px] text-slate-500 leading-none">B2 Prim</span>
+                                            <span className="font-bold text-slate-300">{header.id}</span>
+                                        </div>
+                                    </div>
+                                </th>
+                            ))}
+
+                            {/* Standard B2 Secondary Split Headers - Row 1 */}
+                            {isStandardMode && standardB2SecondaryHeaders.map((header) => (
+                                <th key={`std-header-b2s-r1-${header.id}`} className={`p-2 border-r border-slate-800/50 font-mono text-xs text-teal-300 relative group w-10 min-w-15 ${header.bg} border-b`}>
+                                    <div className="flex justify-center items-center h-full px-2">
+                                        <div className="flex flex-col items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity text-center">
+                                            <span className="text-[10px] text-slate-500 leading-none">B2 Sec</span>
                                             <span className="font-bold text-slate-300">{header.id}</span>
                                         </div>
                                     </div>
@@ -295,7 +411,21 @@ export default function DataTable({
                         {isStandardMode && (
                             <tr>
                                 {standardB1Headers.map((header) => (
-                                    <th key={`std-header-r2-${header.id}`} className={`p-1.5 border-r border-slate-800/50 font-mono text-xs text-indigo-300 relative ${header.bg}`}>
+                                    <th key={`std-header-b1-r2-${header.id}`} className={`p-1.5 border-r border-slate-800/50 font-mono text-xs text-indigo-300 relative ${header.bg}`}>
+                                        <div className="flex flex-col items-center justify-center opacity-80 text-center">
+                                            <span className="font-bold text-slate-300 whitespace-nowrap text-[10px] px-1">{header.label}</span>
+                                        </div>
+                                    </th>
+                                ))}
+                                {standardB2PrimaryHeaders.map((header) => (
+                                    <th key={`std-header-b2p-r2-${header.id}`} className={`p-1.5 border-r border-slate-800/50 font-mono text-xs text-emerald-300 relative ${header.bg}`}>
+                                        <div className="flex flex-col items-center justify-center opacity-80 text-center">
+                                            <span className="font-bold text-slate-300 whitespace-nowrap text-[10px] px-1">{header.label}</span>
+                                        </div>
+                                    </th>
+                                ))}
+                                {standardB2SecondaryHeaders.map((header) => (
+                                    <th key={`std-header-b2s-r2-${header.id}`} className={`p-1.5 border-r border-slate-800/50 font-mono text-xs text-teal-300 relative ${header.bg}`}>
                                         <div className="flex flex-col items-center justify-center opacity-80 text-center">
                                             <span className="font-bold text-slate-300 whitespace-nowrap text-[10px] px-1">{header.label}</span>
                                         </div>
@@ -304,7 +434,7 @@ export default function DataTable({
                             </tr>
                         )}
                     </thead>
-                    
+
                     {/* Table Body */}
                     <tbody className="divide-y divide-slate-800/50">
                         {displayedCards.map((card, idx) => {
@@ -312,11 +442,47 @@ export default function DataTable({
 
                             // Group B1 elements if in Standard Mode
                             const b1Slots = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [] };
+                            const b2PrimarySlots = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 10: [], 11: [] };
+                            const b2SecondarySlots = { 1: [], 2: [], 3: [] };
+
                             if (isStandardMode) {
+                                let secIndex = 0;
                                 card.lines.forEach(line => {
-                                    if (line.checked && !line.isHtmlTag && line.semanticPath?.startsWith('B1_')) {
-                                        const slotId = classifyBlock1Token(line);
-                                        b1Slots[slotId].push(line);
+                                    if (line.checked && !line.isHtmlTag) {
+                                        if (line.semanticPath?.startsWith('B1_')) {
+                                            const slotId = classifyBlock1Token(line);
+                                            b1Slots[slotId].push(line);
+                                        } else if (line.semanticPath?.startsWith('B2_')) {
+                                            const tagsPath = (line.htmlTagsPath || '').toLowerCase();
+                                            const textLower = (line.text || '').toLowerCase().trim();
+
+                                            // CRITICAL FIX: Intercept the Customs phrase immediately to avoid HTML class discrepancy
+                                            if (textLower.includes('customs services and international tracking provided')) {
+                                                b2PrimarySlots[10].push(line);
+                                            } else if (tagsPath.includes('su-card-container__attributes__primary')) {
+                                                const slotId = classifyBlock2PrimaryToken(line);
+                                                if (slotId === 11) {
+                                                    // Forcefully remove all middle dot characters regardless of context
+                                                    let targetText = (line.text || '').replace(/·/g, '');
+
+                                                    // Clean up data for Block 2 Primary slot 11 by removing periods and 'to' word/prefix
+                                                    const cleanedText = targetText
+                                                        .replace(/\./g, '')
+                                                        .replace(/\bto\b/gi, '')
+                                                        .trim();
+                                                    
+                                                    if (cleanedText) {
+                                                        b2PrimarySlots[11].push({ ...line, text: cleanedText });
+                                                    }
+                                                } else {
+                                                    b2PrimarySlots[slotId].push(line);
+                                                }
+                                            } else if (tagsPath.includes('su-card-container__attributes__secondary')) {
+                                                const slotId = classifyBlock2SecondaryToken(line, secIndex);
+                                                b2SecondarySlots[slotId].push(line);
+                                                secIndex++;
+                                            }
+                                        }
                                     }
                                 });
                             }
@@ -335,13 +501,13 @@ export default function DataTable({
 
                                     {/* Render Structured Standard B1 Columns */}
                                     {isStandardMode && standardB1Headers.map((header) => (
-                                        <td key={`std-cell-${header.id}`} className={`p-3 border-r border-slate-800/40 whitespace-nowrap min-w-37.5 group/cell relative ${header.bg}`}>
+                                        <td key={`std-cell-b1-${header.id}`} className={`p-3 border-r border-slate-800/40 whitespace-nowrap min-w-37.5 group/cell relative ${header.bg}`}>
                                             <div className="flex flex-col gap-2 min-h-6 justify-center">
                                                 {b1Slots[header.id].map((line, i) => (
                                                     <div key={i} className="flex items-center justify-between gap-4 group/std" title={line.htmlTagsPath}>
                                                         <span className="text-slate-200 font-medium">{line.text}</span>
-                                                        <button 
-                                                            onClick={() => onDeleteCell(card.id, line.semanticPath)} 
+                                                        <button
+                                                            onClick={() => onDeleteCell(card.id, line.semanticPath)}
                                                             className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/std:opacity-100 flex items-center justify-center shrink-0"
                                                             title="Clear cell content"
                                                         >
@@ -354,16 +520,58 @@ export default function DataTable({
                                         </td>
                                     ))}
 
+                                    {/* Render Structured Standard B2 Primary Columns */}
+                                    {isStandardMode && standardB2PrimaryHeaders.map((header) => (
+                                        <td key={`std-cell-b2p-${header.id}`} className={`p-3 border-r border-slate-800/40 whitespace-nowrap min-w-37.5 group/cell relative ${header.bg}`}>
+                                            <div className="flex flex-col gap-2 min-h-6 justify-center">
+                                                {b2PrimarySlots[header.id].map((line, i) => (
+                                                    <div key={i} className="flex items-center justify-between gap-4 group/std" title={line.htmlTagsPath}>
+                                                        <span className="text-slate-200 font-medium">{line.text}</span>
+                                                        <button
+                                                            onClick={() => onDeleteCell(card.id, line.semanticPath)}
+                                                            className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/std:opacity-100 flex items-center justify-center shrink-0"
+                                                            title="Clear cell content"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {b2PrimarySlots[header.id].length === 0 && <span className="text-slate-700 select-none flex justify-center">-</span>}
+                                            </div>
+                                        </td>
+                                    ))}
+
+                                    {/* Render Structured Standard B2 Secondary Columns */}
+                                    {isStandardMode && standardB2SecondaryHeaders.map((header) => (
+                                        <td key={`std-cell-b2s-${header.id}`} className={`p-3 border-r border-slate-800/40 whitespace-nowrap min-w-37.5 group/cell relative ${header.bg}`}>
+                                            <div className="flex flex-col gap-2 min-h-6 justify-center">
+                                                {b2SecondarySlots[header.id].map((line, i) => (
+                                                    <div key={i} className="flex items-center justify-between gap-4 group/std" title={line.htmlTagsPath}>
+                                                        <span className="text-slate-200 font-medium">{line.text}</span>
+                                                        <button
+                                                            onClick={() => onDeleteCell(card.id, line.semanticPath)}
+                                                            className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/std:opacity-100 flex items-center justify-center shrink-0"
+                                                            title="Clear cell content"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                                {b2SecondarySlots[header.id].length === 0 && <span className="text-slate-700 select-none flex justify-center">-</span>}
+                                            </div>
+                                        </td>
+                                    ))}
+
                                     {/* Render Unified / Remainder Columns */}
                                     {activeColumnsToMap.map((col) => {
                                         let line = null;
                                         if (col === 'B3_Sponsored') {
                                             line = card.lines.find((l) => l.semanticPath?.startsWith('B3_') && !l.isHtmlTag && l.checked && isObfuscatedSponsored(l.text));
                                         } else {
-                                            line = card.lines.find((l) => 
-                                                l.semanticPath === col && 
-                                                !l.isHtmlTag && 
-                                                l.checked && 
+                                            line = card.lines.find((l) =>
+                                                l.semanticPath === col &&
+                                                !l.isHtmlTag &&
+                                                l.checked &&
                                                 !(isStandardMode && col.startsWith('B3_') && isObfuscatedSponsored(l.text))
                                             );
                                         }
