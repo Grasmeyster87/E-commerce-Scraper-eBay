@@ -262,3 +262,49 @@ app.post('/api/settings/visualizer-mode', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+// DATA EXPORT (Sourced from DB, not Frontend)
+app.post('/api/save', async (req, res) => {
+    // Inject the visualizerLayout parameter requirement into the payload destructuring
+    const { format, directory, dbSettings, tableName, visualizerLayout } = req.body;
+    try {
+        // Fetch all active cards from the DB
+        const allActiveCards = await DBService.getAllActiveCards(
+            dbSettings,
+            tableName,
+        );
+
+        // Generate the table on the backend dynamically based on visualizer layout schema
+        let tableData;
+        if (visualizerLayout === 'structural_for_standart_date') {
+            tableData = CardService.extractStandardTableData(allActiveCards);
+        } else {
+            tableData = CardService.extractTableData(allActiveCards);
+        }
+
+        if (tableData.length === 0)
+            throw new Error('No active cards available for export');
+
+        const targetDir =
+            !directory || directory.trim() === 'backend/data'
+                ? null
+                : directory.trim();
+        let result;
+
+        if (format === 'csv')
+            result = FileHandler.saveToCSV(tableData, targetDir);
+        else if (format === 'json')
+            result = FileHandler.saveToJSON(tableData, targetDir);
+        else if (format === 'sqlite')
+            result = await FileHandler.saveToSQLite(tableData, targetDir);
+        else if (format === 'xml')
+            result = FileHandler.saveToXML(tableData, targetDir);
+        else if (format === 'pdf')
+            result = await FileHandler.saveToPDF(tableData, targetDir);
+        else throw new Error('Unknown format');
+
+        res.json(result);
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
