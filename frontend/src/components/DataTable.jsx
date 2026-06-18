@@ -164,7 +164,7 @@ export default function DataTable({
             'very good - refurbished', 'excellent - refurbished', 'open box',
             'used', 'seller refurbished', 'for parts or not working',
             'certified refurbished', 'like new', 'new without tags', 'nwot',
-            'new with tags', 'nwt', 'refurbished', 'new other (see details)', 'ebay refurbished',
+            'new with tags', 'nwt', 'refurbished', 'new other (see details)', 'eBay Refurbished', 'ebay refurbished'
         ];
         if (commercialConditions.some(cond => textLower === cond || textLower.includes(cond))) return 4;
 
@@ -445,28 +445,48 @@ export default function DataTable({
                             const b2PrimarySlots = { 1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: [], 9: [], 10: [], 11: [] };
                             const b2SecondarySlots = { 1: [], 2: [], 3: [] };
 
+                            // --- GLOBAL DATA SANITIZATION ---
+                            // Strip interpunct (·) globally from all lines for this card before processing
+                            const sanitizedLines = card.lines
+                                .map(line => {
+                                    if (!line.isHtmlTag && typeof line.text === 'string') {
+                                        return {
+                                            ...line,
+                                            // Globally remove interpunct and normalize multiple spaces into a single space
+                                            text: line.text.replace(/·/g, '').replace(/\s{2,}/g, ' ').trim()
+                                        };
+                                    }
+                                    return line;
+                                })
+                                // Skip lines that became completely empty after stripping the dot
+                                .filter(line => line.isHtmlTag || (typeof line.text === 'string' && line.text !== ''));
+
                             if (isStandardMode) {
                                 let secIndex = 0;
-                                card.lines.forEach(line => {
+                                sanitizedLines.forEach(line => {
                                     if (line.checked && !line.isHtmlTag) {
-                                        if (line.semanticPath?.startsWith('B1_')) {
+                                        const textLower = (line.text || '').toLowerCase().trim();
+                                        const tagsPath = (line.htmlTagsPath || '').toLowerCase();
+
+                                        // CRITICAL FIX: Intercept 'eBay Refurbished' immediately from ANY block (B1 or B2)
+                                        // This prevents eBay's structural inconsistencies from routing it to B2 Secondary "Other"
+                                        if (textLower.includes('ebay refurbished')) {
+                                            b1Slots[4].push(line);
+                                        } 
+                                        else if (line.semanticPath?.startsWith('B1_')) {
                                             const slotId = classifyBlock1Token(line);
                                             b1Slots[slotId].push(line);
-                                        } else if (line.semanticPath?.startsWith('B2_')) {
-                                            const tagsPath = (line.htmlTagsPath || '').toLowerCase();
-                                            const textLower = (line.text || '').toLowerCase().trim();
-
+                                        } 
+                                        else if (line.semanticPath?.startsWith('B2_')) {
                                             // CRITICAL FIX: Intercept the Customs phrase immediately to avoid HTML class discrepancy
                                             if (textLower.includes('customs services and international tracking provided')) {
                                                 b2PrimarySlots[10].push(line);
                                             } else if (tagsPath.includes('su-card-container__attributes__primary')) {
                                                 const slotId = classifyBlock2PrimaryToken(line);
                                                 if (slotId === 11) {
-                                                    // Forcefully remove all middle dot characters regardless of context
-                                                    let targetText = (line.text || '').replace(/·/g, '');
-
                                                     // Clean up data for Block 2 Primary slot 11 by removing periods and 'to' word/prefix
-                                                    const cleanedText = targetText
+                                                    // Interpuncts are already globally removed at this stage
+                                                    const cleanedText = line.text
                                                         .replace(/\./g, '')
                                                         .replace(/\bto\b/gi, '')
                                                         .trim();
@@ -566,9 +586,9 @@ export default function DataTable({
                                     {activeColumnsToMap.map((col) => {
                                         let line = null;
                                         if (col === 'B3_Sponsored') {
-                                            line = card.lines.find((l) => l.semanticPath?.startsWith('B3_') && !l.isHtmlTag && l.checked && isObfuscatedSponsored(l.text));
+                                            line = sanitizedLines.find((l) => l.semanticPath?.startsWith('B3_') && !l.isHtmlTag && l.checked && isObfuscatedSponsored(l.text));
                                         } else {
-                                            line = card.lines.find((l) =>
+                                            line = sanitizedLines.find((l) =>
                                                 l.semanticPath === col &&
                                                 !l.isHtmlTag &&
                                                 l.checked &&
