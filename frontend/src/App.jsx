@@ -390,6 +390,7 @@ function App() {
                 directory: saveDir,
                 dbSettings,
                 tableName: activeTable,
+                visualizerLayout,
             });
             if (res.data.success)
                 alert(`✅ Saved successfully!\nPath: ${res.data.filePath}`);
@@ -461,7 +462,12 @@ function App() {
      * Iterates dynamically over target steps updating modal status tickers.
      */
     const handleSaveAllFormats = async () => {
-        const tableData = CardService.extractTableData(results);
+        // Resolve target mapping logic based on visualizer format mode requirement
+        const tableData =
+            visualizerLayout === 'structural_for_standart_date'
+                ? CardService.extractStandardTableData(results)
+                : CardService.extractTableData(results);
+
         if (!tableData || tableData.length === 0)
             return alert('❌ No operational data selected for export');
 
@@ -485,6 +491,7 @@ function App() {
                     directory: saveDir,
                     dbSettings,
                     tableName: activeTable,
+                    visualizerLayout, // Append target visualization state variable
                 });
                 if (response.data.success) {
                     setSaveSteps((prev) =>
