@@ -8,21 +8,38 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const serviceDbPath = path.join(__dirname, '../../config/servise_db.sqlite');
 
 export class SettingsDBService {
-    static async init() {
-        const db = await this.connect();
+    /**
+     * Initializes a connection to the servise_db.sqlite database.
+     */
+    static connect() {
+        const dir = path.dirname(serviceDbPath);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
         return new Promise((resolve, reject) => {
+            const db = new sqlite3.Database(serviceDbPath, (err) => {
+                if (err) reject(err);
+                else resolve(db);
+            });
+        });
+    }
+
+    /**
+     * Initializes all necessary tables in the service database
+     */
+    static async initDB() {
+        const db = await this.connect();
+        return new Promise((resolve, reject) => {
             db.serialize(() => {
-                // Existing table for pagination delays (kept intact to prevent conflicts)
+                // 1. Table for delay profiles
                 db.run(`
-                    CREATE TABLE IF NOT EXISTS page_delays (
+                    CREATE TABLE IF NOT EXISTS delay_profiles (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        min_delay INTEGER,
-                        max_delay INTEGER
+                        profileName TEXT UNIQUE,
+                        delays TEXT
                     )
                 `);
 
-                // NEW: Isolated schema for UI visualization state matrix
+                // 2. Table for visualizer settings
                 db.run(`
                     CREATE TABLE IF NOT EXISTS visualizer_settings (
                         key TEXT PRIMARY KEY,
@@ -30,10 +47,10 @@ export class SettingsDBService {
                     )
                 `);
 
-                // Seed default layout mode if not initialized yet
+                // 3. Seed default layout mode if not initialized yet
                 db.run(`
                     INSERT OR IGNORE INTO visualizer_settings (key, value)
-                    VALUES ('mode', 'structural_ierar_block')
+                    VALUES ('mode', 'structural_for_standart_date')
                 `, (err) => {
                     db.close();
                     if (err) reject(err);
@@ -55,7 +72,7 @@ export class SettingsDBService {
                 (err, row) => {
                     db.close();
                     if (err) reject(err);
-                    else resolve(row ? row.value : 'structural_ierar_block');
+                    else resolve(row ? row.value : 'structural_for_standart_date');
                 }
             );
         });
@@ -73,50 +90,13 @@ export class SettingsDBService {
                 INSERT INTO visualizer_settings (key, value)
                 VALUES ('mode', ?)
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value
-            `,
+                `,
                 [mode],
                 (err) => {
                     db.close();
                     if (err) reject(err);
                     else resolve();
                 }
-            );
-        });
-    }
-    /**
-     * Initializes a connection to the servise_db.sqlite database.
-     */
-    static connect() {
-        const dir = path.dirname(serviceDbPath);
-        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-        return new Promise((resolve, reject) => {
-            const db = new sqlite3.Database(serviceDbPath, (err) => {
-                if (err) reject(err);
-                else resolve(db);
-            });
-        });
-    }
-
-    /**
-     * Creates a table to store delay profiles if one does not already exist
-     */
-    static async initDB() {
-        const db = await this.connect();
-        return new Promise((resolve, reject) => {
-            db.run(
-                `
-                CREATE TABLE IF NOT EXISTS delay_profiles (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    profileName TEXT UNIQUE,
-                    delays TEXT
-                )
-            `,
-                (err) => {
-                    db.close();
-                    if (err) reject(err);
-                    else resolve();
-                },
             );
         });
     }
