@@ -171,6 +171,16 @@ export default function Sidebar({
                             >
                                 <span>🔄</span> Manual Next Page Step
                             </button>
+
+                            {/* Live Visualizer Link */}
+                            <button
+                                type="button"
+                                onClick={openTableInNewTab}
+                                disabled={!results || results.length === 0}
+                                className="w-full bg-linear-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-mono text-xs font-bold py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                <span>🖥️</span> Open Live Matrix Visualizer
+                            </button>
                         </div>
                     )}
                 </div>
@@ -387,16 +397,6 @@ export default function Sidebar({
 
                     {openSections.exports && (
                         <div className="p-4 bg-slate-950/40 border-t border-slate-900 space-y-4 animate-fadeIn">
-                            {/* Live Visualizer Link */}
-                            <button
-                                type="button"
-                                onClick={openTableInNewTab}
-                                disabled={!results || results.length === 0}
-                                className="w-full bg-linear-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-mono text-xs font-bold py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                            >
-                                <span>🖥️</span> Open Live Matrix Visualizer
-                            </button>
-
                             {/* Batch Formats Block */}
                             <div className="space-y-2">
                                 <label className="block text-[10px] text-slate-500 font-mono mb-1">
