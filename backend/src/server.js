@@ -6,6 +6,7 @@ import { FileHandler } from './utils/fileHandler.js';
 import { DBService } from './utils/dbService.js';
 import { CardService } from './utils/cardProcessor.js';
 import { SettingsDBService } from './utils/settingsDbService.js';
+import { LinkChecker } from './utils/linkChecker.js';
 
 const app = express();
 const PORT = process.env.PORT || 5050;
@@ -235,6 +236,63 @@ app.delete('/api/tables/:tableName', async (req, res) => {
         console.error(`Error deleting table ${tableName}:`, error);
         res.status(500).json({ error: error.message });
     }
+});
+
+// LINK CHECKING - START JOB
+app.post('/api/check-links/start', async (req, res) => {
+    const { tableName, dbSettings } = req.body;
+    if (!tableName) return res.status(400).json({ error: 'Table name is required' });
+
+    const jobId = Date.now().toString();
+    LinkChecker.jobs[jobId] = { status: 'starting', res: null, isPaused: false, isCancelled: false };
+
+    // Fire the async task in the background
+    LinkChecker.runJob(jobId, tableName, dbSettings).catch(console.error);
+
+    res.json({ success: true, jobId });
+});
+
+// LINK CHECKING - JOB ACTION (PAUSE/RESUME/CANCEL)
+app.post('/api/check-links/action', (req, res) => {
+    const { jobId, action } = req.body;
+    const job = LinkChecker.jobs[jobId];
+    
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    
+    if (action === 'pause') {
+        job.isPaused = true;
+    } else if (action === 'resume') {
+        job.isPaused = false;
+    } else if (action === 'cancel') {
+        job.isCancelled = true;
+    }
+    
+    res.json({ success: true, isPaused: job.isPaused, isCancelled: job.isCancelled });
+});
+
+// LINK CHECKING - SSE STREAM
+app.get('/api/check-links/stream/:jobId', (req, res) => {
+    const { jobId } = req.params;
+    
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const job = LinkChecker.jobs[jobId];
+    
+    if (!job) {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: 'Job not found or expired' })}\n\n`);
+        return res.end();
+    }
+
+    job.res = res;
+
+    // Handle client disconnect
+    req.on('close', () => {
+        job.res = null;
+        // Optionally, if you want to cancel the job when client disconnects, 
+        // you could set job.status = 'cancelled' and check it in the loop.
+    });
 });
 
 // GET: Retrieve active visualization layout strategy profile
