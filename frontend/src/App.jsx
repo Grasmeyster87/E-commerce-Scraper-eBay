@@ -5,6 +5,7 @@ import DataTable from './components/DataTable';
 import Sidebar from './components/Sidebar';
 import ProductCard from './components/ProductCard';
 import ProgressModal from './components/ProgressModal';
+import LinkCheckingModal from './components/LinkCheckingModal';
 
 // API backend endpoint fallback from environment variables
 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
@@ -304,6 +305,15 @@ function App() {
             fetchAvailableTables();
         }
     };
+    
+    // NEW: State for Link Checking Modal
+    const [linkCheckState, setLinkCheckState] = useState({ isOpen: false, tableName: '' });
+
+    const handleCheckLinks = () => {
+        if (!activeTable) return;
+        setLinkCheckState({ isOpen: true, tableName: activeTable });
+    };
+
     /**
      * Persists atomic card modifications directly to the backend SQLite3 database.
      * @param {Object} updatedCard - The modified card entity with updated field rules
@@ -775,6 +785,7 @@ function App() {
                         handleLoadTable={handleLoadTable}
                         setPageDelays={setPageDelays}
                         handleDeleteActiveTable={handleDeleteActiveTable}
+                        handleCheckLinks={handleCheckLinks}
                     />
 
                     {/* Content Section & Product List Feed */}
@@ -835,6 +846,29 @@ function App() {
                     </main>
                 </div>
             </div>
+
+            <LinkCheckingModal 
+                isOpen={linkCheckState.isOpen}
+                tableName={linkCheckState.tableName}
+                dbSettings={dbSettings}
+                onClose={(refresh, summary) => {
+                    setLinkCheckState({ isOpen: false, tableName: '' });
+                    
+                    if (refresh && summary) {
+                        if (summary.tableDropped) {
+                            setActiveTable('');
+                            setResults([]);
+                            setAvailableTables((prev) =>
+                                prev.filter((t) => t.name !== linkCheckState.tableName),
+                            );
+                        } else if (summary.deletedCount > 0) {
+                            handleLoadTable(linkCheckState.tableName);
+                        }
+                    }
+                    fetchAvailableTables();
+                }}
+            />
+
             <ProgressModal
                 isOpen={isProgressModalOpen}
                 onClose={() => setIsProgressModalOpen(false)}

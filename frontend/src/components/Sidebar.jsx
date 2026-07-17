@@ -26,6 +26,7 @@ export default function Sidebar({
     handleLoadTable,
     setPageDelays,
     handleDeleteActiveTable,
+    handleCheckLinks,
 }) {
     // State to manage the expanded status of each menu section
     const [openSections, setOpenSections] = useState({
@@ -180,6 +181,16 @@ export default function Sidebar({
                                 className="w-full bg-linear-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-mono text-xs font-bold py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 <span>🖥️</span> Open Live Matrix Visualizer
+                            </button>
+
+                            {/* Link Checking */}
+                            <button
+                                type="button"
+                                onClick={handleCheckLinks}
+                                disabled={!activeTable || loading}
+                                className="w-full bg-slate-900 border border-amber-500/50 hover:bg-amber-900/40 text-amber-400 font-mono text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                            >
+                                <span>🔗</span> Link Checking
                             </button>
                         </div>
                     )}
