@@ -11,6 +11,8 @@
  * @param {Function} toggleLinkSave - Determines if asset URLs (img/card) should be included in export.
  * @param {Function} toggleLineCheck - Toggles inclusion of a specific DOM node in the final table.
  */
+import { useTranslation } from '../locales/LanguageContext';
+
 export default function ProductCard({
     card,
     toggleCardCheck,
@@ -20,6 +22,8 @@ export default function ProductCard({
     toggleLinkSave,
     toggleLineCheck
 }) {
+    const { t } = useTranslation();
+
     return (
         <div
             className={`bg-slate-900/60 backdrop-blur border p-5 rounded-2xl shadow-xl flex flex-col gap-4 transition-all duration-300 ${card.cardChecked ? 'border-slate-800 opacity-100' : 'border-slate-900/40 opacity-40'}`}
@@ -33,7 +37,7 @@ export default function ProductCard({
                         checked={card.cardChecked}
                         onChange={() => toggleCardCheck(card.id)}
                     />
-                    <span>Include</span>
+                    <span>{t('card.include')}</span>
                 </label>
 
                 <label className="flex items-center gap-2.5 text-xs sm:text-sm font-semibold text-slate-200 cursor-pointer select-none border-l border-slate-800 pl-4 sm:pl-6">
@@ -43,7 +47,7 @@ export default function ProductCard({
                         checked={card.uniqueness !== false}
                         onChange={() => toggleUniquenessCheck(card.id)}
                     />
-                    <span>Context Sync</span>
+                    <span>{t('card.contextSync')}</span>
                 </label>
 
                 {/* Depth Traversal Control */}
@@ -52,7 +56,7 @@ export default function ProductCard({
                         htmlFor={`counter-${card.id}`}
                         className="text-xs sm:text-sm font-semibold text-slate-200 select-none"
                     >
-                        Tree Depth:
+                        {t('card.treeDepth')}
                     </label>
                     <div className="relative flex items-center bg-slate-900 border border-slate-700 rounded-lg overflow-hidden focus-within:border-cyan-500 transition-colors">
                         <input
@@ -93,7 +97,7 @@ export default function ProductCard({
                     onClick={() => toggleCleanText(card.id)}
                     className={`text-xs font-bold px-4 py-2 rounded-xl border transition-all duration-200 select-none ${card.showCleanText ? 'bg-cyan-500 text-slate-950 border-cyan-400 shadow-lg shadow-cyan-500/20' : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-slate-100'}`}
                 >
-                    {card.showCleanText ? '✨ View Structure' : '📄 View Text Nodes'}
+                    {card.showCleanText ? t('card.viewStructure') : t('card.viewTextNodes')}
                 </button>
             </div>
 
@@ -106,7 +110,7 @@ export default function ProductCard({
                         <div className="w-full h-44 bg-slate-950/80 rounded-xl overflow-hidden border border-slate-800/80 flex items-center justify-center p-2 relative group">
                             <img
                                 src={card.img}
-                                alt="Entity thumbnail"
+                                alt={t('card.thumbnailAlt')}
                                 className="object-contain max-w-full max-h-full transition-transform duration-300 group-hover:scale-105"
                             />
                         </div>
@@ -120,14 +124,14 @@ export default function ProductCard({
                                 className="w-3.5 h-3.5 accent-cyan-500 rounded border-slate-700"
                             />
                             <span className="truncate">
-                                Source URL:{' '}
+                                {t('card.sourceUrl')}{' '}
                                 <a
                                     href={card.url || '#'}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="text-cyan-400 underline hover:text-cyan-300 ml-1"
                                 >
-                                    Open
+                                    {t('card.open')}
                                 </a>
                             </span>
                         </label>
@@ -139,14 +143,14 @@ export default function ProductCard({
                                 className="w-3.5 h-3.5 accent-cyan-500 rounded border-slate-700"
                             />
                             <span className="truncate">
-                                Asset URL:{' '}
+                                {t('card.assetUrl')}{' '}
                                 <a
                                     href={card.img || '#'}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="text-cyan-400 underline hover:text-cyan-300 ml-1"
                                 >
-                                    Open
+                                    {t('card.open')}
                                 </a>
                             </span>
                         </label>

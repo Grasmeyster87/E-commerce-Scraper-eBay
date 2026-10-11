@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import { useTranslation } from '../locales/LanguageContext';
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
 
 export default function LinkCheckingModal({ isOpen, onClose, tableName, dbSettings }) {
+    const { t } = useTranslation();
     const [status, setStatus] = useState('idle'); // idle, running, finished, error, paused, cancelled
     const [progress, setProgress] = useState({ current: 0, total: 0 });
     const [logs, setLogs] = useState([]);
@@ -29,7 +31,7 @@ export default function LinkCheckingModal({ isOpen, onClose, tableName, dbSettin
         const startJob = async () => {
             setStatus('running');
             setProgress({ current: 0, total: 0 });
-            setLogs([{ type: 'info', text: `Starting link checking for table: ${tableName}...` }]);
+            setLogs([{ type: 'info', text: t('linkChecking.starting', { tableName }) }]);
             setSummary(null);
 
             try {
@@ -57,7 +59,7 @@ export default function LinkCheckingModal({ isOpen, onClose, tableName, dbSettin
                         
                         if (data.type === 'start') {
                             setProgress({ current: 0, total: data.total });
-                            setLogs(prev => [...prev, { type: 'info', text: `Found ${data.total} cards to check.` }]);
+                            setLogs(prev => [...prev, { type: 'info', text: t('linkChecking.foundCards', { total: data.total }) }]);
                         } else if (data.type === 'progress') {
                             setProgress(prev => ({ ...prev, current: data.current }));
                             
@@ -65,17 +67,17 @@ export default function LinkCheckingModal({ isOpen, onClose, tableName, dbSettin
                             let logType = 'info';
                             
                             if (data.status === 'deleted') {
-                                logMsg = `DELETED: Found "ended by seller" in ${data.url}`;
+                                logMsg = t('linkChecking.logDeleted', { url: data.url });
                                 logType = 'success';
                                 setDeletedCount(prev => prev + 1);
                             } else if (data.status === 'error') {
-                                logMsg = `ERROR: Failed to check ${data.url} (${data.error})`;
+                                logMsg = t('linkChecking.logError', { url: data.url, error: data.error });
                                 logType = 'error';
                             } else if (data.status === 'ok') {
-                                logMsg = `OK: Listing active ${data.url}`;
+                                logMsg = t('linkChecking.logOk', { url: data.url });
                                 logType = 'info';
                             } else if (data.status === 'skipped') {
-                                logMsg = `SKIPPED: Invalid URL`;
+                                logMsg = t('linkChecking.logSkipped');
                                 logType = 'warning';
                             }
                             
@@ -83,18 +85,18 @@ export default function LinkCheckingModal({ isOpen, onClose, tableName, dbSettin
                         } else if (data.type === 'finish') {
                             setStatus('finished');
                             setSummary({ deletedCount: data.deletedCount, tableDropped: data.tableDropped });
-                            setLogs(prev => [...prev, { type: 'success', text: `Job finished! Deleted ${data.deletedCount} items.` }]);
+                            setLogs(prev => [...prev, { type: 'success', text: t('linkChecking.jobFinished', { count: data.deletedCount }) }]);
                             if (data.tableDropped) {
-                                setLogs(prev => [...prev, { type: 'warning', text: `Table ${tableName} was emptied and dropped.` }]);
+                                setLogs(prev => [...prev, { type: 'warning', text: t('linkChecking.tableDropped', { tableName }) }]);
                             }
                             if (data.cancelled) {
                                 setStatus('cancelled');
-                                setLogs(prev => [...prev, { type: 'warning', text: `Job was cancelled by the user.` }]);
+                                setLogs(prev => [...prev, { type: 'warning', text: t('linkChecking.jobCancelled') }]);
                             }
                             eventSource.close();
                         } else if (data.type === 'error') {
                             setStatus('error');
-                            setLogs(prev => [...prev, { type: 'error', text: `Server error: ${data.message}` }]);
+                            setLogs(prev => [...prev, { type: 'error', text: t('linkChecking.serverError', { message: data.message }) }]);
                             eventSource.close();
                         }
                     } catch (err) {
@@ -105,7 +107,7 @@ export default function LinkCheckingModal({ isOpen, onClose, tableName, dbSettin
                 eventSource.onerror = (err) => {
                     if (status !== 'finished' && isComponentMounted) {
                         setStatus('error');
-                        setLogs(prev => [...prev, { type: 'error', text: 'Lost connection to server.' }]);
+                        setLogs(prev => [...prev, { type: 'error', text: t('linkChecking.lostConnection') }]);
                     }
                     if (eventSource) eventSource.close();
                 };
@@ -113,7 +115,7 @@ export default function LinkCheckingModal({ isOpen, onClose, tableName, dbSettin
             } catch (err) {
                 if (!isComponentMounted) return;
                 setStatus('error');
-                setLogs(prev => [...prev, { type: 'error', text: `Failed to start job: ${err.message}` }]);
+                setLogs(prev => [...prev, { type: 'error', text: t('linkChecking.failedStart', { message: err.message }) }]);
             }
         };
 
@@ -157,27 +159,27 @@ export default function LinkCheckingModal({ isOpen, onClose, tableName, dbSettin
                 <div className="p-4 border-b border-slate-800 bg-slate-950 flex justify-between items-center shrink-0">
                     <div>
                         <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
-                            <span>🔗</span> Link Checking Task
+                            {t('linkChecking.title')}
                         </h2>
                         <div className="flex items-center gap-4 mt-1">
-                            <p className="text-xs text-slate-400 font-mono">Table: {tableName}</p>
+                            <p className="text-xs text-slate-400 font-mono">{t('linkChecking.table', { tableName })}</p>
                             <p className="text-xs text-rose-400 font-mono font-bold flex items-center gap-1">
-                                <span>🗑️</span> Deleted: {deletedCount}
+                                {t('linkChecking.deleted', { count: deletedCount })}
                             </p>
                         </div>
                     </div>
                     <button 
                         onClick={() => {
                             if (status === 'running') {
-                                if (window.confirm('Job is currently running. Are you sure you want to cancel and close?')) {
+                                if (window.confirm(t('linkChecking.cancelConfirm'))) {
                                     handleAction('cancel');
                                 }
                             } else {
                                 onClose(true, summary);
                             }
                         }}
-                        className="text-slate-400 hover:text-white transition-colors p-2"
-                        title="Close Window"
+                        className="text-slate-400 hover:text-white transition-colors p-2 cursor-pointer"
+                        title={t('linkChecking.closeWindow')}
                     >
                         ✕
                     </button>
@@ -187,10 +189,10 @@ export default function LinkCheckingModal({ isOpen, onClose, tableName, dbSettin
                 <div className="p-5 bg-slate-900/50 shrink-0">
                     <div className="flex justify-between items-center mb-2 text-sm font-mono">
                         <span className="text-slate-300">
-                            {status === 'running' ? (isPaused ? 'Paused...' : 'Scanning links...') : 
-                             status === 'cancelled' ? 'Scan cancelled' :
-                             status === 'finished' ? 'Scan complete' : 
-                             status === 'error' ? 'Scan failed' : 'Preparing...'}
+                            {status === 'running' ? (isPaused ? t('linkChecking.statusPaused') : t('linkChecking.statusScanning')) : 
+                             status === 'cancelled' ? t('linkChecking.statusCancelled') :
+                             status === 'finished' ? t('linkChecking.statusComplete') : 
+                             status === 'error' ? t('linkChecking.statusFailed') : t('linkChecking.statusPreparing')}
                         </span>
                         <span className="text-cyan-400 font-bold">
                             {progress.current} / {progress.total} ({progressPercentage}%)
@@ -230,13 +232,13 @@ export default function LinkCheckingModal({ isOpen, onClose, tableName, dbSettin
                         {status === 'running' && (
                             <button
                                 onClick={() => handleAction(isPaused ? 'resume' : 'pause')}
-                                className={`px-4 py-2 rounded-xl font-bold font-mono text-sm transition-all shadow-lg active:scale-95 flex items-center gap-2 ${
+                                className={`px-4 py-2 rounded-xl font-bold font-mono text-sm transition-all shadow-lg active:scale-95 flex items-center gap-2 cursor-pointer ${
                                     isPaused 
                                     ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20'
                                     : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-500/20'
                                 }`}
                             >
-                                {isPaused ? '▶ Resume' : '⏸ Pause'}
+                                {isPaused ? t('linkChecking.resume') : t('linkChecking.pause')}
                             </button>
                         )}
                     </div>
@@ -246,17 +248,17 @@ export default function LinkCheckingModal({ isOpen, onClose, tableName, dbSettin
                         {status === 'running' ? (
                             <div className="flex items-center gap-2 text-amber-500 font-mono text-sm px-4 py-2">
                                 {isPaused ? (
-                                    <span>⏸ Paused</span>
+                                    <span>{t('linkChecking.statusPaused')}</span>
                                 ) : (
-                                    <span className="animate-pulse">⏳ Working... Please wait</span>
+                                    <span className="animate-pulse">{t('linkChecking.statusScanning')}</span>
                                 )}
                             </div>
                         ) : (
                             <button
                                 onClick={() => onClose(true, summary)}
-                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-xl font-bold font-mono text-sm shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                                className="bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-2 rounded-xl font-bold font-mono text-sm shadow-lg shadow-indigo-500/20 transition-all active:scale-95 cursor-pointer"
                             >
-                                Close & Refresh
+                                {t('progressModal.acknowledge')}
                             </button>
                         )}
                     </div>

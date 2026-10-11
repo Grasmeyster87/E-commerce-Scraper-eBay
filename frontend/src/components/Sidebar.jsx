@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import ScrapingDelays from './ScrapingDelays';
 import axios from 'axios';
+import { useTranslation } from '../locales/LanguageContext';
 
 export default function Sidebar({
     saveDir,
@@ -28,6 +29,8 @@ export default function Sidebar({
     handleDeleteActiveTable,
     handleCheckLinks,
 }) {
+    const { t } = useTranslation();
+
     // State to manage the expanded status of each menu section
     const [openSections, setOpenSections] = useState({
         automation: true, // Automation is open by default
@@ -56,10 +59,10 @@ export default function Sidebar({
                 </div>
                 <div>
                     <h1 className="text-xs font-mono font-bold text-slate-200 tracking-wider">
-                        EBAY SCRAPER
+                        {t('sidebar.brandTitle')}
                     </h1>
                     <p className="text-[10px] font-mono text-indigo-400">
-                        v1.2.0 • Enterprise Edition
+                        {t('sidebar.brandSubtitle')}
                     </p>
                 </div>
             </div>
@@ -76,7 +79,7 @@ export default function Sidebar({
                         className="w-full bg-slate-900/80 hover:bg-slate-900 px-4 py-3 text-left text-[11px] font-mono font-bold text-slate-300 flex items-center justify-between transition-colors cursor-pointer"
                     >
                         <span className="flex items-center gap-2">
-                            🚀 AUTOMATION CONTROLLER
+                            {t('sidebar.automationController')}
                         </span>
                         <span
                             className={`text-slate-500 transition-transform duration-200 ${openSections.automation ? 'rotate-180' : ''}`}
@@ -90,7 +93,7 @@ export default function Sidebar({
                             {/* Target Items Limit */}
                             <div>
                                 <label className="block text-[10px] text-slate-500 font-mono mb-1">
-                                    ITEMS PER PAGE REQUEST:
+                                    {t('sidebar.itemsPerPage')}
                                 </label>
                                 <select
                                     value={itemsPerPageSelection}
@@ -102,13 +105,13 @@ export default function Sidebar({
                                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500 cursor-pointer"
                                 >
                                     <option value={60}>
-                                        60 Items (Standard)
+                                        {t('sidebar.itemsStandard')}
                                     </option>
                                     <option value={120}>
-                                        120 Items (Extended)
+                                        {t('sidebar.itemsExtended')}
                                     </option>
                                     <option value={240}>
-                                        240 Items (Max Batch)
+                                        {t('sidebar.itemsMaxBatch')}
                                     </option>
                                 </select>
                             </div>
@@ -117,10 +120,10 @@ export default function Sidebar({
                             <div className="bg-slate-950/60 border border-slate-900 p-3 rounded-xl flex items-center justify-between">
                                 <div>
                                     <p className="text-xs font-mono text-slate-300">
-                                        Scrape All Pages
+                                        {t('sidebar.scrapeAllPages')}
                                     </p>
                                     <p className="text-[9px] font-mono text-slate-600">
-                                        Recursive execution loop
+                                        {t('sidebar.scrapeAllSubtitle')}
                                     </p>
                                 </div>
                                 <input
@@ -137,7 +140,7 @@ export default function Sidebar({
                             {!scrapeAllPages && (
                                 <div className="animate-slideDown">
                                     <label className="block text-[10px] text-slate-500 font-mono mb-1">
-                                        MAX BOUNDED PAGES:
+                                        {t('sidebar.maxBoundedPages')}
                                     </label>
                                     <input
                                         type="number"
@@ -168,9 +171,9 @@ export default function Sidebar({
                                         pagination.currentPage >=
                                             pagination.totalPages)
                                 }
-                                className="w-full bg-slate-900 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-850 text-slate-300 font-mono text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                                className="w-full bg-slate-900 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-855 text-slate-300 font-mono text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
-                                <span>🔄</span> Manual Next Page Step
+                                <span>🔄</span> {t('sidebar.manualNextPage')}
                             </button>
 
                             {/* Live Visualizer Link */}
@@ -180,7 +183,7 @@ export default function Sidebar({
                                 disabled={!results || results.length === 0}
                                 className="w-full bg-linear-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-mono text-xs font-bold py-2.5 px-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
-                                <span>🖥️</span> Open Live Matrix Visualizer
+                                <span>🖥️</span> {t('sidebar.openVisualizer')}
                             </button>
 
                             {/* Link Checking */}
@@ -190,7 +193,7 @@ export default function Sidebar({
                                 disabled={!activeTable || loading}
                                 className="w-full bg-slate-900 border border-amber-500/50 hover:bg-amber-900/40 text-amber-400 font-mono text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
-                                <span>🔗</span> Link Checking
+                                <span>🔗</span> {t('sidebar.linkChecking')}
                             </button>
                         </div>
                     )}
@@ -204,7 +207,7 @@ export default function Sidebar({
                         className="w-full bg-slate-900/80 hover:bg-slate-900 px-4 py-3 text-left text-[11px] font-mono font-bold text-slate-300 flex items-center justify-between transition-colors cursor-pointer"
                     >
                         <span className="flex items-center gap-2">
-                            ⏱️ PAGINATION DELAYS
+                            {t('sidebar.paginationDelays')}
                         </span>
                         <span
                             className={`text-slate-500 transition-transform duration-200 ${openSections.delays ? 'rotate-180' : ''}`}
@@ -226,16 +229,16 @@ export default function Sidebar({
                                     );
                                     setPageDelays(profileData.pageDelays);
                                     alert(
-                                        `✅ Profile "${profileData.profileName}" saved successfully!`,
+                                        t('delays.profileSaved', {
+                                            name: profileData.profileName,
+                                        }),
                                     );
                                 } catch (err) {
                                     console.error(
                                         'Failed to save delay profile:',
                                         err,
                                     );
-                                    alert(
-                                        '❌ Error saving profile to database.',
-                                    );
+                                    alert(t('delays.profileSaveError'));
                                 }
                             }}
                             onLoadDefault={() => {
@@ -257,7 +260,7 @@ export default function Sidebar({
                         className="w-full bg-slate-900/80 hover:bg-slate-900 px-4 py-3 text-left text-[11px] font-mono font-bold text-slate-300 flex items-center justify-between transition-colors cursor-pointer"
                     >
                         <span className="flex items-center gap-2">
-                            🗄️ STORAGE & DATASET TARGETS
+                            {t('sidebar.storageTargets')}
                         </span>
                         <span
                             className={`text-slate-500 transition-transform duration-200 ${openSections.storage ? 'rotate-180' : ''}`}
@@ -271,13 +274,13 @@ export default function Sidebar({
                             {/* Directory Config */}
                             <div>
                                 <label className="block text-[10px] text-slate-500 font-mono mb-1">
-                                    EXPORT DIRECTORY PATH:
+                                    {t('sidebar.exportDirPath')}
                                 </label>
                                 <input
                                     type="text"
                                     value={saveDir}
                                     onChange={(e) => setSaveDir(e.target.value)}
-                                    placeholder="backend/data"
+                                    placeholder={t('sidebar.exportDirPlaceholder')}
                                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-500"
                                 />
                             </div>
@@ -285,7 +288,7 @@ export default function Sidebar({
                             {/* Database Context Configuration */}
                             <div className="space-y-3 p-3 bg-slate-950/50 border border-slate-900 rounded-xl">
                                 <label className="block text-[10px] text-cyan-500 font-mono font-bold">
-                                    SQLITE3 CONFIGURATION:
+                                    {t('sidebar.sqliteConfig')}
                                 </label>
 
                                 <label className="flex items-center gap-3 cursor-pointer group hover:text-white text-[11px] text-slate-400">
@@ -300,7 +303,7 @@ export default function Sidebar({
                                         }
                                         className="w-3.5 h-3.5 accent-cyan-500 rounded"
                                     />
-                                    <span>Log to primary table</span>
+                                    <span>{t('sidebar.logPrimaryTable')}</span>
                                 </label>
 
                                 <label className="flex items-center gap-3 cursor-pointer group hover:text-white text-[11px] text-slate-400">
@@ -316,7 +319,7 @@ export default function Sidebar({
                                         }
                                         className="w-3.5 h-3.5 accent-cyan-500 rounded"
                                     />
-                                    <span>Mount latest on boot</span>
+                                    <span>{t('sidebar.mountLatestBoot')}</span>
                                 </label>
 
                                 <label className="flex items-center gap-3 cursor-pointer group hover:text-white text-[11px] text-slate-400">
@@ -331,7 +334,7 @@ export default function Sidebar({
                                         }
                                         className="w-3.5 h-3.5 accent-indigo-500 rounded"
                                     />
-                                    <span>Override storage path</span>
+                                    <span>{t('sidebar.overrideStoragePath')}</span>
                                 </label>
 
                                 {dbSettings.saveToCustom && (
@@ -344,7 +347,7 @@ export default function Sidebar({
                                                 customPath: e.target.value,
                                             }))
                                         }
-                                        placeholder="E.g., D:/my_databases/..."
+                                        placeholder={t('sidebar.customPathPlaceholder')}
                                         className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 font-mono text-[10px] text-slate-300 focus:border-indigo-500 outline-none"
                                     />
                                 )}
@@ -353,7 +356,7 @@ export default function Sidebar({
                             {/* Tables Dataset Selector */}
                             <div>
                                 <label className="block text-[10px] text-slate-500 font-mono mb-1">
-                                    ACTIVE TABLE (DATASET):
+                                    {t('sidebar.activeTable')}
                                 </label>
                                 <select
                                     value={activeTable || ''}
@@ -364,14 +367,14 @@ export default function Sidebar({
                                     className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-[11px] text-slate-200 font-mono focus:outline-none focus:border-indigo-500 cursor-pointer disabled:opacity-50"
                                 >
                                     <option value="" disabled>
-                                        Select a table to load...
+                                        {t('sidebar.selectTable')}
                                     </option>
                                     {availableTables.map((table) => (
                                         <option
                                             key={table.name}
                                             value={table.name}
                                         >
-                                            {table.name} ({table.count} rows)
+                                            {table.name} ({t('sidebar.rowsCount', { count: table.count })})
                                         </option>
                                     ))}
                                 </select>
@@ -381,7 +384,7 @@ export default function Sidebar({
                                         disabled={loading}
                                         className="w-full text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 px-3 py-2 rounded-xl transition-colors cursor-pointer disabled:opacity-30 border border-red-500/20 font-mono text-[10px] font-bold uppercase tracking-wide"
                                     >
-                                        Delete this table from DB
+                                        {t('sidebar.deleteTableBtn')}
                                     </button>
                                 )}
                             </div>
@@ -397,7 +400,7 @@ export default function Sidebar({
                         className="w-full bg-slate-900/80 hover:bg-slate-900 px-4 py-3 text-left text-[11px] font-mono font-bold text-slate-300 flex items-center justify-between transition-colors cursor-pointer"
                     >
                         <span className="flex items-center gap-2">
-                            🛠️ WIZARDS & I/O OPERATIONS
+                            {t('sidebar.systemActions')}
                         </span>
                         <span
                             className={`text-slate-500 transition-transform duration-200 ${openSections.exports ? 'rotate-180' : ''}`}
@@ -411,7 +414,7 @@ export default function Sidebar({
                             {/* Batch Formats Block */}
                             <div className="space-y-2">
                                 <label className="block text-[10px] text-slate-500 font-mono mb-1">
-                                    SERIALIZE SINGLE EXPORT:
+                                    {t('sidebar.serializeExport')}
                                 </label>
                                 <div className="grid grid-cols-2 gap-2">
                                     {['csv', 'json', 'xml', 'pdf', 'sqlite'].map(
@@ -428,7 +431,7 @@ export default function Sidebar({
                                                 }
                                                 className="bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 font-mono text-[11px] py-2 rounded-lg transition-all capitalize disabled:opacity-40"
                                             >
-                                                .{fmt} File
+                                                {t('sidebar.fileExport', { fmt })}
                                             </button>
                                         ),
                                     )}
@@ -442,7 +445,7 @@ export default function Sidebar({
                                 disabled={!results || results.length === 0}
                                 className="w-full bg-cyan-950/60 border border-cyan-800/40 hover:bg-cyan-900/50 text-cyan-400 font-mono text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40"
                             >
-                                <span>📦</span> Build Master Archive (.all)
+                                <span>📦</span> {t('sidebar.buildMasterArchive')}
                             </button>
 
                             {/* Destructive Clear Buffer */}
@@ -452,7 +455,7 @@ export default function Sidebar({
                                 disabled={!results || results.length === 0}
                                 className="w-full bg-rose-950/30 border border-rose-900/30 hover:bg-rose-900/40 text-rose-400 font-mono text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-30"
                             >
-                                <span>🗑️</span> Purge Active View State
+                                <span>🗑️</span> {t('sidebar.purgeViewState')}
                             </button>
                         </div>
                     )}
@@ -463,7 +466,7 @@ export default function Sidebar({
             {pagination && (
                 <div className="bg-slate-950 border border-slate-900 p-3 rounded-xl font-mono text-[10px] text-slate-500 space-y-1 mt-auto">
                     <div className="flex justify-between">
-                        <span>PIPELINE STATUS:</span>
+                        <span>{t('sidebar.pipelineStatus')}</span>
                         <span
                             className={
                                 loading
@@ -471,20 +474,22 @@ export default function Sidebar({
                                     : 'text-emerald-500'
                             }
                         >
-                            {loading ? 'PROCESSING' : 'IDLE'}
+                            {loading ? t('sidebar.processing') : t('sidebar.idle')}
                         </span>
                     </div>
                     <div className="flex justify-between">
-                        <span>PAGINATION NODE:</span>
+                        <span>{t('sidebar.paginationNode')}</span>
                         <span className="text-slate-300">
-                            Page {pagination.currentPage} /{' '}
-                            {pagination.totalPages || '?'}
+                            {t('sidebar.pageOf', {
+                                current: pagination.currentPage,
+                                total: pagination.totalPages || '?',
+                            })}
                         </span>
                     </div>
                     <div className="flex justify-between">
-                        <span>BUFFER SIZE:</span>
+                        <span>{t('sidebar.bufferSize')}</span>
                         <span className="text-slate-300">
-                            {results?.length || 0} Entities
+                            {t('sidebar.entities', { count: results?.length || 0 })}
                         </span>
                     </div>
                 </div>

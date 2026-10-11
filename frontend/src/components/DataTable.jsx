@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from '../locales/LanguageContext';
 
 /**
  * DataTable Component
@@ -22,6 +23,7 @@ export default function DataTable({
     onClose,
     visualizerLayout = 'structural_for_standart_date',
 }) {
+    const { t } = useTranslation();
     // Filter results to only include cards marked for saving
     const activeCards = results.filter((c) => c.cardChecked);
 
@@ -134,7 +136,7 @@ export default function DataTable({
                 }
                 return a.localeCompare(b);
             });
-            colDisplayNumbers['B3_Sponsored'] = 'Sponsored';
+            colDisplayNumbers['B3_Sponsored'] = t('dataTable.sponsored');
         }
     }
 
@@ -251,35 +253,35 @@ export default function DataTable({
 
     // Static definitions for the 7 new split columns
     const standardB1Headers = [
-        { id: 1, label: '1. New Listing', bg: 'bg-blue-900/10' },
-        { id: 2, label: '2. Low Price', bg: 'bg-red-900/10' },
-        { id: 3, label: '3. Product Title', bg: 'bg-indigo-900/10' },
-        { id: 4, label: '4. Condition', bg: 'bg-emerald-900/10' },
-        { id: 5, label: '5. Ratings', bg: 'bg-amber-900/10' },
-        { id: 6, label: '6. Edition', bg: 'bg-purple-900/10' },
-        { id: 7, label: '7. Other Data', bg: 'bg-slate-800/30' },
+        { id: 1, label: t('dataTable.b1NewListing'), bg: 'bg-blue-900/10' },
+        { id: 2, label: t('dataTable.b1LowPrice'), bg: 'bg-red-900/10' },
+        { id: 3, label: t('dataTable.b1Title'), bg: 'bg-indigo-900/10' },
+        { id: 4, label: t('dataTable.b1Condition'), bg: 'bg-emerald-900/10' },
+        { id: 5, label: t('dataTable.b1Ratings'), bg: 'bg-amber-900/10' },
+        { id: 6, label: t('dataTable.b1Edition'), bg: 'bg-purple-900/10' },
+        { id: 7, label: t('dataTable.b1Other'), bg: 'bg-slate-800/30' },
     ];
 
     // Static definitions for Block 2 Primary split columns (11 columns)
     const standardB2PrimaryHeaders = [
-        { id: 1, label: '1. Time Left', bg: 'bg-emerald-900/10' },
-        { id: 2, label: '2. Price', bg: 'bg-emerald-900/10' },
-        { id: 3, label: '3. Bids', bg: 'bg-emerald-900/10' },
-        { id: 4, label: '4. Format', bg: 'bg-emerald-900/10' },
-        { id: 5, label: '5. Shipping', bg: 'bg-emerald-900/10' },
-        { id: 6, label: '6. Location', bg: 'bg-emerald-900/10' },
-        { id: 7, label: '7. Sold', bg: 'bg-emerald-900/10' },
-        { id: 8, label: '8. Watchers', bg: 'bg-emerald-900/10' },
-        { id: 9, label: '9. Save', bg: 'bg-emerald-900/10' },
-        { id: 10, label: '10. Customs', bg: 'bg-emerald-900/10' },
-        { id: 11, label: '11. Other', bg: 'bg-emerald-900/10' },
+        { id: 1, label: t('dataTable.b2TimeLeft'), bg: 'bg-emerald-900/10' },
+        { id: 2, label: t('dataTable.b2Price'), bg: 'bg-emerald-900/10' },
+        { id: 3, label: t('dataTable.b2Bids'), bg: 'bg-emerald-900/10' },
+        { id: 4, label: t('dataTable.b2Format'), bg: 'bg-emerald-900/10' },
+        { id: 5, label: t('dataTable.b2Shipping'), bg: 'bg-emerald-900/10' },
+        { id: 6, label: t('dataTable.b2Location'), bg: 'bg-emerald-900/10' },
+        { id: 7, label: t('dataTable.b2Sold'), bg: 'bg-emerald-900/10' },
+        { id: 8, label: t('dataTable.b2Watchers'), bg: 'bg-emerald-900/10' },
+        { id: 9, label: t('dataTable.b2Save'), bg: 'bg-emerald-900/10' },
+        { id: 10, label: t('dataTable.b2Customs'), bg: 'bg-emerald-900/10' },
+        { id: 11, label: t('dataTable.b2Other'), bg: 'bg-emerald-900/10' },
     ];
 
     // Static definitions for Block 2 Secondary split columns (3 columns)
     const standardB2SecondaryHeaders = [
-        { id: 1, label: '1. Nickname', bg: 'bg-teal-900/10' },
-        { id: 2, label: '2. Positive %', bg: 'bg-teal-900/10' },
-        { id: 3, label: '3. Other', bg: 'bg-teal-900/10' },
+        { id: 1, label: t('dataTable.b2Nickname'), bg: 'bg-teal-900/10' },
+        { id: 2, label: t('dataTable.b2Positive'), bg: 'bg-teal-900/10' },
+        { id: 3, label: t('dataTable.b2SecOther'), bg: 'bg-teal-900/10' },
     ];
 
     return (
@@ -290,12 +292,12 @@ export default function DataTable({
                     onClick={onClose}
                     className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-sm font-bold transition-colors flex items-center gap-2"
                 >
-                    ⬅ Back to Feed
+                    {t('dataTable.backToFeed')}
                 </button>
 
                 {/* Pagination Controls */}
                 <div className="flex items-center gap-4 text-sm font-semibold text-indigo-300 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl">
-                    <span>Rows per page ({itemsPerPage}):</span>
+                    <span>{t('dataTable.rowsPerPage', { count: itemsPerPage })}</span>
                     <button
                         onClick={() => setTablePage((p) => Math.max(1, p - 1))}
                         disabled={tablePage === 1}
@@ -316,7 +318,7 @@ export default function DataTable({
                 </div>
 
                 <div className="text-sm font-semibold text-emerald-400 bg-emerald-500/10 px-4 py-2 rounded-xl border border-emerald-900/50">
-                    Total Rows: {activeCards.length}
+                    {t('dataTable.totalRows', { count: activeCards.length })}
                 </div>
             </div>
 
@@ -326,15 +328,15 @@ export default function DataTable({
                     {/* Fixed Header */}
                     <thead className="bg-slate-950/95 sticky top-0 z-10 shadow-sm border-b border-slate-800">
                         <tr>
-                            <th rowSpan={isStandardMode ? 2 : 1} className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-16 text-center">№</th>
-                            <th rowSpan={isStandardMode ? 2 : 1} className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-32">Entity ID</th>
+                            <th rowSpan={isStandardMode ? 2 : 1} className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-16 text-center">{t('dataTable.number')}</th>
+                            <th rowSpan={isStandardMode ? 2 : 1} className="p-3 border-r border-slate-800 font-semibold text-slate-400 w-32">{t('dataTable.entityId')}</th>
 
                             {/* Standard B1 Split Headers - Row 1 (Block Grouping) */}
                             {isStandardMode && standardB1Headers.map((header) => (
                                 <th key={`std-header-b1-r1-${header.id}`} className={`p-2 border-r border-slate-800/50 font-mono text-xs text-indigo-300 relative group w-10 min-w-15 ${header.bg} border-b`}>
                                     <div className="flex justify-center items-center h-full px-2">
                                         <div className="flex flex-col items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity text-center">
-                                            <span className="text-[10px] text-slate-500 leading-none">Block 1</span>
+                                            <span className="text-[10px] text-slate-500 leading-none">{t('dataTable.block1')}</span>
                                             <span className="font-bold text-slate-300">{header.id}</span>
                                         </div>
                                     </div>
@@ -346,7 +348,7 @@ export default function DataTable({
                                 <th key={`std-header-b2p-r1-${header.id}`} className={`p-2 border-r border-slate-800/50 font-mono text-xs text-emerald-300 relative group w-10 min-w-15 ${header.bg} border-b`}>
                                     <div className="flex justify-center items-center h-full px-2">
                                         <div className="flex flex-col items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity text-center">
-                                            <span className="text-[10px] text-slate-500 leading-none">B2 Prim</span>
+                                            <span className="text-[10px] text-slate-500 leading-none">{t('dataTable.b2Prim')}</span>
                                             <span className="font-bold text-slate-300">{header.id}</span>
                                         </div>
                                     </div>
@@ -358,7 +360,7 @@ export default function DataTable({
                                 <th key={`std-header-b2s-r1-${header.id}`} className={`p-2 border-r border-slate-800/50 font-mono text-xs text-teal-300 relative group w-10 min-w-15 ${header.bg} border-b`}>
                                     <div className="flex justify-center items-center h-full px-2">
                                         <div className="flex flex-col items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity text-center">
-                                            <span className="text-[10px] text-slate-500 leading-none">B2 Sec</span>
+                                            <span className="text-[10px] text-slate-500 leading-none">{t('dataTable.b2Sec')}</span>
                                             <span className="font-bold text-slate-300">{header.id}</span>
                                         </div>
                                     </div>
@@ -378,10 +380,10 @@ export default function DataTable({
 
                                 const match = col.match(/^B(\d+)_/);
                                 let displayTitle = colDisplayNumbers[col];
-                                let blockNum = 'Field';
+                                let blockNum = t('dataTable.field');
                                 let bgClass = '';
                                 if (match) {
-                                    blockNum = match[1] === '99' ? 'Other' : `Block ${match[1]}`;
+                                    blockNum = match[1] === '99' ? t('dataTable.other') : t('dataTable.blockNum', { num: match[1] });
                                     if (match[1] === '1') bgClass = 'bg-blue-900/10 border-blue-800/30';
                                     else if (match[1] === '2') bgClass = 'bg-emerald-900/10 border-emerald-800/30';
                                     else if (match[1] === '3') bgClass = 'bg-purple-900/10 border-purple-800/30';
@@ -397,7 +399,7 @@ export default function DataTable({
                                             <button
                                                 onClick={() => onDeleteColumn(col)}
                                                 className="text-red-500 hover:text-red-400 bg-red-500/10 hover:bg-red-500/20 w-5 h-5 flex justify-center items-center rounded font-sans font-bold text-xs transition-all opacity-0 group-hover:opacity-100 absolute top-1 right-1"
-                                                title="Drop column from dataset"
+                                                title={t('dataTable.dropColumn')}
                                             >
                                                 ✕
                                             </button>
@@ -512,7 +514,7 @@ export default function DataTable({
                                     <td className="p-3 border-r border-slate-800 text-center font-medium bg-slate-950/20 sticky left-0">
                                         <div className="flex items-center justify-center gap-2">
                                             <span className="text-slate-400">{absoluteIndex}</span>
-                                            <button onClick={() => onDeleteRow(card.id)} className="text-red-500 hover:text-red-400 w-5 h-5 rounded hover:bg-red-500/10 font-sans font-bold text-xs transition-colors flex items-center justify-center" title="Exclude entity from export">✕</button>
+                                            <button onClick={() => onDeleteRow(card.id)} className="text-red-500 hover:text-red-400 w-5 h-5 rounded hover:bg-red-500/10 font-sans font-bold text-xs transition-colors flex items-center justify-center" title={t('dataTable.excludeEntity')}>✕</button>
                                         </div>
                                     </td>
                                     <td className="p-3 border-r border-slate-800 bg-slate-950/20">
@@ -529,7 +531,7 @@ export default function DataTable({
                                                         <button
                                                             onClick={() => onDeleteCell(card.id, line.semanticPath)}
                                                             className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/std:opacity-100 flex items-center justify-center shrink-0"
-                                                            title="Clear cell content"
+                                                            title={t('dataTable.clearCell')}
                                                         >
                                                             ✕
                                                         </button>
@@ -550,7 +552,7 @@ export default function DataTable({
                                                         <button
                                                             onClick={() => onDeleteCell(card.id, line.semanticPath)}
                                                             className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/std:opacity-100 flex items-center justify-center shrink-0"
-                                                            title="Clear cell content"
+                                                            title={t('dataTable.clearCell')}
                                                         >
                                                             ✕
                                                         </button>
@@ -571,7 +573,7 @@ export default function DataTable({
                                                         <button
                                                             onClick={() => onDeleteCell(card.id, line.semanticPath)}
                                                             className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/std:opacity-100 flex items-center justify-center shrink-0"
-                                                            title="Clear cell content"
+                                                            title={t('dataTable.clearCell')}
                                                         >
                                                             ✕
                                                         </button>
@@ -617,7 +619,7 @@ export default function DataTable({
                                                                 }
                                                             }}
                                                             className="text-red-500/50 hover:text-red-400 hover:bg-red-500/10 font-sans font-bold text-xs w-5 h-5 rounded transition-colors opacity-0 group-hover/cell:opacity-100 flex items-center justify-center shrink-0"
-                                                            title="Clear cell content"
+                                                            title={t('dataTable.clearCell')}
                                                         >
                                                             ✕
                                                         </button>
@@ -637,7 +639,7 @@ export default function DataTable({
                 {/* Empty State Fallback */}
                 {activeCards.length === 0 && (
                     <div className="p-10 text-center text-slate-500">
-                        No active entities to display. Toggle the "Save" checkbox on target items.
+                        {t('dataTable.noActiveEntities')}
                     </div>
                 )}
             </div>

@@ -6,6 +6,8 @@ import Sidebar from './components/Sidebar';
 import ProductCard from './components/ProductCard';
 import ProgressModal from './components/ProgressModal';
 import LinkCheckingModal from './components/LinkCheckingModal';
+import LanguageSelector from './components/LanguageSelector';
+import { useTranslation } from './locales/LanguageContext';
 
 // API backend endpoint fallback from environment variables
 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
@@ -16,6 +18,8 @@ const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
  * for the eBay structural skeleton parsing tool.
  */
 function App() {
+    const { t } = useTranslation();
+
     /**
      * SQLite3 Database settings state.
      * Persisted locally to maintain user configuration across page reloads.
@@ -188,7 +192,7 @@ function App() {
             setFrontendPage(1);
             setPagination({ currentPage: 1, totalPages: 1, itemsPerPage: 60 });
         } catch (err) {
-            alert(`Error loading table: ${err.message}`);
+            alert(t('app.loadTableError', { error: err.message }));
         } finally {
             setLoading(false);
         }
@@ -207,7 +211,7 @@ function App() {
         overrideTable = null,
     ) => {
         if (!query && action === 'search')
-            return alert('Please enter a search query');
+            return alert(t('app.queryAlert'));
         if (!isAutoCall) setLoading(true);
 
         // Fallback to override parameter to ensure the recursive step uses the correct sequential table
@@ -266,7 +270,7 @@ function App() {
         } catch (error) {
             console.error('Scraping handler failure:', error);
             setAutoScraping(false);
-            if (!isAutoCall) alert(`Error occurred: ${error.message}`);
+            if (!isAutoCall) alert(t('app.errorOccurred', { error: error.message }));
         } finally {
             if (!isAutoCall) setLoading(false);
             fetchAvailableTables();
@@ -277,7 +281,7 @@ function App() {
         if (!activeTable) return;
 
         const confirmDelete = window.confirm(
-            `Are you sure you want to permanently delete table "${activeTable}"? This action cannot be undone.`,
+            t('app.deleteTableConfirm', { tableName: activeTable }),
         );
         if (!confirmDelete) return;
 
@@ -294,11 +298,13 @@ function App() {
             );
             setActiveTable(''); // Скидаємо активну таблицю
             setResults([]); // Очищуємо результати на екрані
-            alert('Table successfully deleted.');
+            alert(t('app.deleteTableSuccess'));
         } catch (error) {
             console.error('Error deleting table:', error);
             alert(
-                `Failed to delete table: ${error.response?.data?.error || error.message}`,
+                t('app.deleteTableFailed', {
+                    error: error.response?.data?.error || error.message,
+                }),
             );
         } finally {
             setLoading(false);
@@ -378,7 +384,7 @@ function App() {
     const handleClear = () => {
         if (
             window.confirm(
-                'Clear workspace? (Database tables will remain secure)',
+                t('app.clearConfirm'),
             )
         ) {
             setActiveTable('');
@@ -393,7 +399,7 @@ function App() {
      * @param {string} format - Document format type ('csv' | 'json' | 'sqlite' | 'xml' | 'pdf')
      */
     const handleSaveData = async (format) => {
-        if (!activeTable) return alert('No active scraping table found');
+        if (!activeTable) return alert(t('app.noActiveTable'));
         try {
             const res = await axios.post(`${backendUrl}/api/save`, {
                 format,
@@ -403,10 +409,12 @@ function App() {
                 visualizerLayout,
             });
             if (res.data.success)
-                alert(`✅ Saved successfully!\nPath: ${res.data.filePath}`);
+                alert(t('app.saveSuccess', { path: res.data.filePath }));
         } catch (error) {
             alert(
-                `❌ Export error: ${error.response?.data?.error || error.message}`,
+                t('app.saveError', {
+                    error: error.response?.data?.error || error.message,
+                }),
             );
         }
     };
@@ -479,7 +487,7 @@ function App() {
                 : CardService.extractTableData(results);
 
         if (!tableData || tableData.length === 0)
-            return alert('❌ No operational data selected for export');
+            return alert(t('app.noExportData'));
 
         setIsProgressModalOpen(true);
         setSaveSteps((prev) =>
@@ -538,14 +546,14 @@ function App() {
         results.length > 0 && (
             <div className="bg-indigo-950/40 border border-indigo-500/30 p-4 rounded-2xl flex flex-wrap justify-between items-center text-sm font-semibold text-indigo-300 shadow-sm gap-4 mb-6">
                 <div className="flex items-center gap-2">
-                    <span>📄 Scraper Web Page:</span>
+                    <span>{t('app.scraperWebPage')}</span>
                     <span className="bg-indigo-500/20 px-3 py-1 rounded-md text-indigo-200 border border-indigo-500/30">
                         {pagination.currentPage} /{' '}
                         {pagination.totalPages || '?'}
                     </span>
                 </div>
                 <div className="flex items-center gap-4">
-                    <span>Local View Layout:</span>
+                    <span>{t('app.localViewLayout')}</span>
                     <button
                         onClick={() =>
                             setFrontendPage((p) => Math.max(1, p - 1))
@@ -574,9 +582,9 @@ function App() {
                     </button>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span>📊 Accumulated In Table:</span>
+                    <span>{t('app.accumulatedInTable')}</span>
                     <span className="bg-emerald-500/20 px-3 py-1 rounded-md text-emerald-300 border border-emerald-500/30">
-                        {results.length} units
+                        {results.length} {t('app.units')}
                     </span>
                 </div>
             </div>
@@ -586,16 +594,19 @@ function App() {
     if (isTableRoute) {
         return (
             <div className="min-h-screen bg-slate-950 text-slate-100 p-4 font-sans flex flex-col">
-                <h1 className="text-xl font-bold text-cyan-400 text-center mb-4">
-                    Data Table Output
-                </h1>
+                <div className="flex items-center justify-between mb-4">
+                    <h1 className="text-xl font-bold text-cyan-400">
+                        {t('app.dataTableOutput')}
+                    </h1>
+                    <LanguageSelector />
+                </div>
 
                 {/* TOP CONTROL BAR: Radio Buttons (Left) & Export Buttons (Right) */}
                 <div className="flex items-center justify-between w-full mb-4 gap-4 flex-wrap">
                     {/* LEFT: Layout Strategy Toggle */}
                     <div className="flex items-center gap-4 text-xs font-semibold text-slate-300 bg-slate-900/50 p-2 rounded-xl border border-slate-800">
                         <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">
-                            Layout:
+                            {t('app.layout')}
                         </span>
                         <label className="flex items-center gap-1.5 cursor-pointer hover:text-cyan-400 transition-colors">
                             <input
@@ -613,7 +624,7 @@ function App() {
                                 }
                                 className="w-3.5 h-3.5 accent-cyan-500 cursor-pointer"
                             />
-                            <span>Hierarchical Blocks</span>
+                            <span>{t('app.hierarchicalBlocks')}</span>
                         </label>
                         <label className="flex items-center gap-1.5 cursor-pointer hover:text-cyan-400 transition-colors">
                             <input
@@ -631,7 +642,7 @@ function App() {
                                 }
                                 className="w-3.5 h-3.5 accent-cyan-500 cursor-pointer"
                             />
-                            <span>Standard Columns (Split B1)</span>
+                            <span>{t('app.standardColumns')}</span>
                         </label>
                     </div>
 
@@ -641,7 +652,7 @@ function App() {
                             onClick={handleSaveAllFormats}
                             className="bg-linear-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 text-white font-semibold text-xs py-2 px-4 rounded-xl shadow-lg transition-all"
                         >
-                            ⚡ Save All Formats
+                            {t('app.saveAllFormats')}
                         </button>
                         {['csv', 'json', 'sqlite', 'xml', 'pdf'].map((fmt) => (
                             <button
@@ -686,14 +697,20 @@ function App() {
             <div className="max-w-400 mx-auto space-y-6">
                 {/* Search & Main Configuration Bar */}
                 <div className="bg-slate-900/40 backdrop-blur-md border border-slate-800/80 p-6 rounded-3xl shadow-2xl space-y-4">
-                    <h1 className="text-2xl sm:text-3xl font-extrabold bg-linear-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
-                        eBay Structural Skeleton
-                    </h1>
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                        <h1 className="text-2xl sm:text-3xl font-extrabold bg-linear-to-r from-cyan-400 via-indigo-400 to-purple-500 bg-clip-text text-transparent">
+                            {t('app.title')}
+                        </h1>
+                        {/* Dropdown with languages placed directly above the New Search button */}
+                        <div className="self-end sm:self-auto flex items-center">
+                            <LanguageSelector />
+                        </div>
+                    </div>
                     <div className="flex gap-3">
                         <input
                             type="text"
                             className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:border-cyan-500/50 outline-none text-slate-200 placeholder-slate-600"
-                            placeholder="Enter product or URL..."
+                            placeholder={t('app.searchPlaceholder')}
                             value={query}
                             onChange={(e) => setQuery(e.target.value)}
                             onKeyDown={(e) =>
@@ -707,8 +724,8 @@ function App() {
                             className="bg-linear-to-r from-cyan-500 to-indigo-600 text-slate-950 font-bold px-6 py-3 rounded-xl shadow-lg active:scale-95 disabled:opacity-50 shrink-0"
                         >
                             {loading && !autoScraping
-                                ? 'Scanning...'
-                                : 'New Search'}
+                                ? t('app.scanning')
+                                : t('app.newSearch')}
                         </button>
                     </div>
 
@@ -723,7 +740,7 @@ function App() {
                                 }
                                 className="w-4 h-4 accent-indigo-500 rounded cursor-pointer"
                             />
-                            <span>Save page HTML for debugging</span>
+                            <span>{t('app.saveDebugHtml')}</span>
                         </label>
 
                         {/* Радіокнопки для вибору режиму */}
@@ -739,7 +756,7 @@ function App() {
                                     }
                                     className="accent-cyan-500 w-4 h-4 cursor-pointer"
                                 />
-                                <span>Search by query</span>
+                                <span>{t('app.searchByQuery')}</span>
                             </label>
 
                             <label className="flex items-center space-x-2 text-sm text-slate-300 cursor-pointer hover:text-slate-100 transition-colors">
@@ -753,7 +770,7 @@ function App() {
                                     }
                                     className="accent-cyan-500 w-4 h-4 cursor-pointer"
                                 />
-                                <span>Search by link</span>
+                                <span>{t('app.searchByLink')}</span>
                             </label>
                         </div>
                     </div>
@@ -797,11 +814,12 @@ function App() {
                                         ⏳
                                     </span>
                                     <span>
-                                        Auto-scraping: processing page{' '}
-                                        {pagination.currentPage + 1} /{' '}
-                                        {maxScrapePages ||
-                                            pagination.totalPages}
-                                        ...
+                                        {t('app.autoScraping', {
+                                            current: pagination.currentPage + 1,
+                                            max:
+                                                maxScrapePages ||
+                                                pagination.totalPages,
+                                        })}
                                     </span>
                                 </div>
                                 <button
@@ -811,7 +829,7 @@ function App() {
                                     }}
                                     className="bg-red-600 hover:bg-red-500 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-colors"
                                 >
-                                    ⏹ Stop
+                                    {t('app.stop')}
                                 </button>
                             </div>
                         )}
@@ -835,7 +853,7 @@ function App() {
 
                             {results.length === 0 && !loading && (
                                 <div className="text-center text-slate-500 py-20 bg-slate-900/20 rounded-3xl border border-dashed border-slate-800">
-                                    ✨ Dashboard is empty. Run a search.
+                                    {t('app.emptyDashboard')}
                                 </div>
                             )}
                         </div>

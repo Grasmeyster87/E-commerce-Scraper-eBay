@@ -1,13 +1,18 @@
-/**
- * ProgressModal Component
- * An overlay modal indicating the real-time status of batch file export operations.
- *
- * @param {boolean} isOpen - Determines if the modal is visible.
- * @param {Function} onClose - Handler to trigger modal dismissal.
- * @param {Object[]} saveSteps - Array representing the queue of format exports (e.g., CSV, JSON) and their statuses.
- */
+import { useTranslation } from '../locales/LanguageContext';
+
 export default function ProgressModal({ isOpen, onClose, saveSteps }) {
+    const { t } = useTranslation();
+
     if (!isOpen) return null;
+
+    const getStepName = (step) => {
+        if (step.id === 'csv') return t('progressModal.exportCsv');
+        if (step.id === 'json') return t('progressModal.exportJson');
+        if (step.id === 'sqlite') return t('progressModal.exportSqlite');
+        if (step.id === 'xml') return t('progressModal.exportXml');
+        if (step.id === 'pdf') return t('progressModal.exportPdf');
+        return step.name;
+    };
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-fadeIn">
@@ -15,13 +20,13 @@ export default function ProgressModal({ isOpen, onClose, saveSteps }) {
                 {/* Header */}
                 <div className="flex justify-between items-center border-b border-slate-800 pb-4 mb-4">
                     <h3 className="text-lg font-bold text-slate-200 flex items-center gap-2">
-                        🔄 Batch Data Export Pipeline
+                        {t('progressModal.title')}
                     </h3>
                     <button
                         onClick={onClose}
-                        className="text-slate-500 hover:text-slate-300 transition-colors text-sm font-bold p-1"
+                        className="text-slate-500 hover:text-slate-300 transition-colors text-sm font-bold p-1 cursor-pointer"
                     >
-                        ✕ Dismiss
+                        {t('progressModal.dismiss')}
                     </button>
                 </div>
 
@@ -60,19 +65,19 @@ export default function ProgressModal({ isOpen, onClose, saveSteps }) {
                                     <p
                                         className={`text-sm font-semibold ${step.status === 'processing' ? 'text-indigo-300' : 'text-slate-300'}`}
                                     >
-                                        {step.name}
+                                        {getStepName(step)}
                                     </p>
                                     {step.status === 'success' && (
                                         <p
                                             className="text-[10px] text-slate-500 font-mono truncate max-w-[320px]"
                                             title={step.path}
                                         >
-                                            Path: {step.path}
+                                            {t('progressModal.path', { path: step.path })}
                                         </p>
                                     )}
                                     {step.status === 'error' && (
                                         <p className="text-[10px] text-red-400 font-mono">
-                                            Fault: {step.error}
+                                            {t('progressModal.fault', { error: step.error })}
                                         </p>
                                     )}
                                 </div>
@@ -80,10 +85,10 @@ export default function ProgressModal({ isOpen, onClose, saveSteps }) {
 
                             {/* Text Labels */}
                             <span className="text-xs font-mono font-bold">
-                                {step.status === 'pending' && <span className="text-slate-600">Pending</span>}
-                                {step.status === 'processing' && <span className="text-indigo-400 animate-pulse">Running...</span>}
-                                {step.status === 'success' && <span className="text-emerald-400">Complete</span>}
-                                {step.status === 'error' && <span className="text-red-400">Failed</span>}
+                                {step.status === 'pending' && <span className="text-slate-600">{t('progressModal.pending')}</span>}
+                                {step.status === 'processing' && <span className="text-indigo-400 animate-pulse">{t('progressModal.running')}</span>}
+                                {step.status === 'success' && <span className="text-emerald-400">{t('progressModal.complete')}</span>}
+                                {step.status === 'error' && <span className="text-red-400">{t('progressModal.failed')}</span>}
                             </span>
                         </div>
                     ))}
@@ -93,9 +98,9 @@ export default function ProgressModal({ isOpen, onClose, saveSteps }) {
                 <div className="flex justify-end border-t border-slate-800 pt-4">
                     <button
                         onClick={onClose}
-                        className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs px-5 py-2.5 rounded-xl transition-colors"
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium text-xs px-5 py-2.5 rounded-xl transition-colors cursor-pointer"
                     >
-                        Acknowledge
+                        {t('progressModal.acknowledge')}
                     </button>
                 </div>
             </div>
