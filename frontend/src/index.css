@@ -1,5 +1,233 @@
 @import "tailwindcss";
 
+/* ================================================================
+   THEME SYSTEM — Light Theme Override (Sage Light)
+   
+   The dark theme uses default Tailwind slate palette (no changes).
+   The light theme overrides the slate scale with warm stone/olive
+   tones and adjusts accent colors for comfortable readability.
+   ================================================================ */
+
+/* --- Light Theme: Override Tailwind's slate color tokens --- */
+[data-theme="light"] {
+  /* Slate scale remapped → warm stone/sage tones (light mode) */
+  --color-slate-50:  #fafaf9;
+  --color-slate-100: #f5f5f4;
+  --color-slate-200: #e7e5e4;
+  --color-slate-300: #d6d3d1;
+  --color-slate-400: #a8a29e;
+  --color-slate-500: #78716c;
+  --color-slate-600: #57534e;
+  --color-slate-700: #44403c;
+  --color-slate-800: #d4d2cd;
+  --color-slate-900: #e8e6e1;
+  --color-slate-950: #f2f0eb;
+
+  /* Indigo accent → muted olive/forest green */
+  --color-indigo-400: #4d7c0f;
+  --color-indigo-500: #65a30d;
+  --color-indigo-600: #4d7c0f;
+  --color-indigo-700: #3f6212;
+  --color-indigo-950: #f0fdf4;
+
+  /* Cyan accent → teal/emerald for light theme */
+  --color-cyan-400: #0d9488;
+  --color-cyan-500: #14b8a6;
+  --color-cyan-800: #b2dfdb;
+  --color-cyan-950: #f0fdfa;
+
+  /* Emerald adjustments for light contrast */
+  --color-emerald-300: #059669;
+  --color-emerald-500: #10b981;
+
+  /* Rose/Red for destructive actions */
+  --color-rose-400: #e11d48;
+  --color-rose-900: #fecdd3;
+  --color-rose-950: #fff1f2;
+
+  /* Amber for warnings */
+  --color-amber-300: #d97706;
+  --color-amber-500: #f59e0b;
+  --color-amber-950: #fffbeb;
+
+  /* Red for delete actions */
+  --color-red-400: #dc2626;
+  --color-red-500: #ef4444;
+  --color-red-600: #dc2626;
+
+  /* Purple for gradient elements */
+  --color-purple-500: #7c3aed;
+  --color-violet-600: #7c3aed;
+}
+
+/* Light theme text color inversions for readability */
+[data-theme="light"] {
+  color-scheme: light;
+}
+
+/* Override text colors that use slate palette in light mode */
+[data-theme="light"] .text-slate-100,
+[data-theme="light"] .text-slate-200 {
+  color: #292524;
+}
+
+[data-theme="light"] .text-slate-300 {
+  color: #44403c;
+}
+
+[data-theme="light"] .text-slate-400 {
+  color: #57534e;
+}
+
+[data-theme="light"] .text-slate-500 {
+  color: #78716c;
+}
+
+[data-theme="light"] .text-slate-600 {
+  color: #57534e;
+}
+
+[data-theme="light"] .text-white {
+  color: #1c1917;
+}
+
+/* Gradient text fix for light mode */
+[data-theme="light"] .from-cyan-400 {
+  --tw-gradient-from: #0d9488;
+}
+
+[data-theme="light"] .via-indigo-400 {
+  --tw-gradient-via: #4d7c0f;
+}
+
+[data-theme="light"] .to-purple-500 {
+  --tw-gradient-to: #7c3aed;
+}
+
+/* Border adjustments for light theme */
+[data-theme="light"] .border-slate-800 {
+  border-color: #d6d3d1;
+}
+
+[data-theme="light"] .border-slate-900 {
+  border-color: #e7e5e4;
+}
+
+[data-theme="light"] .border-slate-700 {
+  border-color: #d6d3d1;
+}
+
+/* Shadow adjustments — softer in light mode */
+[data-theme="light"] .shadow-black\/20,
+[data-theme="light"] .shadow-black\/60 {
+  --tw-shadow-color: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme="light"] .shadow-lg {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+}
+
+[data-theme="light"] .shadow-2xl {
+  box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.08), 0 4px 10px -6px rgba(0, 0, 0, 0.04);
+}
+
+/* Scrollbar for light theme */
+[data-theme="light"] .custom-scrollbar::-webkit-scrollbar-track {
+  background: #e8e6e1;
+}
+
+[data-theme="light"] .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #a8a29e;
+}
+
+[data-theme="light"] .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #78716c;
+}
+
+/* Selection colors */
+[data-theme="light"] .selection\:bg-cyan-500 *::selection,
+[data-theme="light"] .selection\:bg-cyan-500::selection {
+  background-color: rgba(20, 184, 166, 0.3);
+}
+
+[data-theme="light"] .selection\:text-slate-900 *::selection,
+[data-theme="light"] .selection\:text-slate-900::selection {
+  color: #1c1917;
+}
+
+/* Backdrop blur adjustments */
+[data-theme="light"] .backdrop-blur-md {
+  backdrop-filter: blur(12px);
+}
+
+[data-theme="light"] .backdrop-blur-xl {
+  backdrop-filter: blur(24px);
+}
+
+/* Input placeholder color in light mode */
+[data-theme="light"] .placeholder-slate-600::placeholder {
+  color: #a8a29e;
+}
+
+/* Button gradient overrides for light theme */
+[data-theme="light"] .from-cyan-500 {
+  --tw-gradient-from: #14b8a6;
+}
+
+[data-theme="light"] .to-indigo-600 {
+  --tw-gradient-to: #4d7c0f;
+}
+
+/* Theme selector button styles for light mode */
+[data-theme="light"] .theme-selector-btn {
+  background-color: rgba(242, 240, 235, 0.8);
+  border-color: #d6d3d1;
+  color: #292524;
+}
+
+[data-theme="light"] .theme-selector-btn:hover {
+  background-color: rgba(232, 230, 225, 0.9);
+  border-color: rgba(20, 184, 166, 0.5);
+}
+
+[data-theme="light"] .theme-selector-text {
+  color: #292524;
+}
+
+[data-theme="light"] .theme-selector-dropdown {
+  background-color: rgba(242, 240, 235, 0.95);
+  border-color: #d6d3d1;
+}
+
+/* Focus ring adjustments */
+[data-theme="light"] .focus\:border-cyan-500\/50:focus {
+  border-color: rgba(20, 184, 166, 0.5);
+}
+
+[data-theme="light"] .focus\:border-indigo-500:focus {
+  border-color: #65a30d;
+}
+
+[data-theme="light"] .focus\:ring-cyan-500\/30:focus {
+  --tw-ring-color: rgba(20, 184, 166, 0.3);
+}
+
+/* Animate pulse text color fix */
+[data-theme="light"] .animate-pulse .text-amber-500 {
+  color: #d97706;
+}
+
+/* Opacity overrides for inactive cards */
+[data-theme="light"] .opacity-40 {
+  opacity: 0.5;
+}
+
+/* --- Smooth theme transition --- */
+[data-theme="light"],
+[data-theme="dark"] {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
 /* Always display spinner arrows for input[type="number"] */
 /* Chrome, Edge, Safari */
 input[type="number"]::-webkit-inner-spin-button,

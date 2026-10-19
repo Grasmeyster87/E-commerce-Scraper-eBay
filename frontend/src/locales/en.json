@@ -193,5 +193,10 @@
     "he": "עברית",
     "ar": "العربية (الفصحى)",
     "selectLanguage": "Language"
+  },
+  "theme": {
+    "dark": "Dark",
+    "light": "Light",
+    "selectTheme": "Theme"
   }
 }

@@ -7,6 +7,7 @@ import ProductCard from './components/ProductCard';
 import ProgressModal from './components/ProgressModal';
 import LinkCheckingModal from './components/LinkCheckingModal';
 import LanguageSelector from './components/LanguageSelector';
+import ThemeSelector from './components/ThemeSelector';
 import { useTranslation } from './locales/LanguageContext';
 
 // API backend endpoint fallback from environment variables
@@ -598,7 +599,10 @@ function App() {
                     <h1 className="text-xl font-bold text-cyan-400">
                         {t('app.dataTableOutput')}
                     </h1>
-                    <LanguageSelector />
+                    <div className="flex items-center gap-2">
+                        <ThemeSelector />
+                        <LanguageSelector />
+                    </div>
                 </div>
 
                 {/* TOP CONTROL BAR: Radio Buttons (Left) & Export Buttons (Right) */}
@@ -702,7 +706,8 @@ function App() {
                             {t('app.title')}
                         </h1>
                         {/* Dropdown with languages placed directly above the New Search button */}
-                        <div className="self-end sm:self-auto flex items-center">
+                        <div className="self-end sm:self-auto flex items-center gap-2">
+                            <ThemeSelector />
                             <LanguageSelector />
                         </div>
                     </div>
