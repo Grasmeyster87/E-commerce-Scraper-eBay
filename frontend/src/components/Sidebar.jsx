@@ -51,9 +51,9 @@ export default function Sidebar({
     };
 
     return (
-        <div className="w-80 bg-slate-950 border-r border-slate-800 p-4 flex flex-col gap-4 overflow-y-auto h-screen select-none custom-scrollbar shrink-0">
+        <aside className="w-full lg:w-80 flex flex-col gap-4 select-none shrink-0">
             {/* Header / Brand Logo */}
-            <div className="flex items-center gap-3 px-2 py-1">
+            <div className="flex items-center gap-3 px-1 py-1">
                 <div className="w-8 h-8 rounded-xl bg-linear-to-tr from-indigo-600 to-cyan-500 flex items-center justify-center text-white font-black text-sm shadow-lg shadow-indigo-500/20">
                     E
                 </div>
@@ -67,10 +67,10 @@ export default function Sidebar({
                 </div>
             </div>
 
-            <hr className="border-slate-900" />
+            <hr className="border-slate-800/80" />
 
             {/* --- ACCORDION SYSTEM CONTAINER --- */}
-            <div className="flex flex-col gap-3 flex-1">
+            <div className="flex flex-col gap-3">
                 {/* SECTION 1: AUTOMATION & CONTROLS */}
                 <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-900/30 transition-all">
                     <button
@@ -464,7 +464,7 @@ export default function Sidebar({
 
             {/* Pagination Active Snapshot (Footer Sidebar Status) */}
             {pagination && (
-                <div className="bg-slate-950 border border-slate-900 p-3 rounded-xl font-mono text-[10px] text-slate-500 space-y-1 mt-auto">
+                <div className="bg-slate-900/40 border border-slate-800/80 p-3 rounded-xl font-mono text-[10px] text-slate-500 space-y-1">
                     <div className="flex justify-between">
                         <span>{t('sidebar.pipelineStatus')}</span>
                         <span
@@ -494,6 +494,6 @@ export default function Sidebar({
                     </div>
                 </div>
             )}
-        </div>
+        </aside>
     );
 }

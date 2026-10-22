@@ -861,6 +861,13 @@ function App() {
                                     {t('app.emptyDashboard')}
                                 </div>
                             )}
+
+                            {results.length === 0 && loading && (
+                                <div className="text-center text-slate-400 py-20 bg-slate-900/20 rounded-3xl border border-dashed border-slate-800/80 animate-pulse flex flex-col items-center justify-center gap-3">
+                                    <span className="text-2xl animate-spin">⏳</span>
+                                    <span>{t('app.scanning')}</span>
+                                </div>
+                            )}
                         </div>
 
                         <div className="mt-6">
