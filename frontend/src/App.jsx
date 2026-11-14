@@ -76,6 +76,11 @@ function App() {
     const [maxScrapePages, setMaxScrapePages] = useState(0);
     const [itemsPerPageSelection, setItemsPerPageSelection] = useState(60);
 
+    // Product pages scraping automation configs
+    const [scrapeProductPages, setScrapeProductPages] = useState(true);
+    const [saveProductHtml, setSaveProductHtml] = useState(false);
+    const [saveProductMedia, setSaveProductMedia] = useState(false);
+
     // Frontend-only pagination state for rendering localized chunks of accumulated data
     const [frontendPage, setFrontendPage] = useState(1);
 
@@ -90,12 +95,25 @@ function App() {
      */
     const autoScrapeRef = useRef(scrapeAllPages);
     const maxPagesRef = useRef(maxScrapePages);
+    const scrapeProductPagesRef = useRef(scrapeProductPages);
+    const saveProductHtmlRef = useRef(saveProductHtml);
+    const saveProductMediaRef = useRef(saveProductMedia);
+
     useEffect(() => {
         autoScrapeRef.current = scrapeAllPages;
     }, [scrapeAllPages]);
     useEffect(() => {
         maxPagesRef.current = maxScrapePages;
     }, [maxScrapePages]);
+    useEffect(() => {
+        scrapeProductPagesRef.current = scrapeProductPages;
+    }, [scrapeProductPages]);
+    useEffect(() => {
+        saveProductHtmlRef.current = saveProductHtml;
+    }, [saveProductHtml]);
+    useEffect(() => {
+        saveProductMediaRef.current = saveProductMedia;
+    }, [saveProductMedia]);
 
     // Cache state modifications to localStorage
     useEffect(() => {
@@ -229,6 +247,9 @@ function App() {
                 activeTable: currentTableName,
                 pageDelays: pageDelaysRef.current,
                 currentPage: pagination.currentPage,
+                scrapeProductPages: scrapeProductPagesRef.current,
+                saveProductHtml: saveProductHtmlRef.current,
+                saveProductMedia: saveProductMediaRef.current,
             });
 
             if (!response.data.success)
@@ -794,6 +815,12 @@ function App() {
                         pagination={pagination}
                         scrapeAllPages={scrapeAllPages}
                         setScrapeAllPages={setScrapeAllPages}
+                        scrapeProductPages={scrapeProductPages}
+                        setScrapeProductPages={setScrapeProductPages}
+                        saveProductHtml={saveProductHtml}
+                        setSaveProductHtml={setSaveProductHtml}
+                        saveProductMedia={saveProductMedia}
+                        setSaveProductMedia={setSaveProductMedia}
                         onNextPage={() => handleScrape('next')}
                         loading={loading}
                         maxScrapePages={maxScrapePages}

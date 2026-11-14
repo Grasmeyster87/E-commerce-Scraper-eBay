@@ -168,6 +168,142 @@ export class DBService {
     }
 
     /**
+     * Створює окрему таблицю для товарів "${tableName}_товари",
+     * пов'язану з активною таблицею через foreign key (card_id -> id).
+     * @static
+     * @method createProductTable
+     * @param {Object} dbSettings - Налаштування бази даних.
+     * @param {string} tableName - Назва активної таблиці пошуку.
+     * @returns {Promise<string>} Назва створеної таблиці товарів.
+     */
+    static async createProductTable(dbSettings, tableName) {
+        const db = await this.connect(dbSettings);
+        const productTableName = `${tableName}_товари`;
+
+        const schema = `
+            CREATE TABLE IF NOT EXISTS "${productTableName}" (
+                card_id TEXT PRIMARY KEY,
+                itemId TEXT,
+                title TEXT,
+                price TEXT,
+                approxPrice TEXT,
+                condition TEXT,
+                availability TEXT,
+                shipping TEXT,
+                returnsPolicy TEXT,
+                sellerName TEXT,
+                sellerScore TEXT,
+                sellerPositivePercent TEXT,
+                breadcrumbs TEXT,
+                itemSpecifics TEXT,
+                images TEXT,
+                galleryLinks TEXT,
+                descriptionText TEXT,
+                descriptionHtml TEXT,
+                descriptionStructured TEXT,
+                htmlFilePath TEXT,
+                mediaFolderPath TEXT,
+                url TEXT,
+                scrapedAt TEXT,
+                FOREIGN KEY (card_id) REFERENCES ${tableName} (id) ON DELETE CASCADE
+            )
+        `;
+        await this.run(db, schema);
+        db.close();
+        return productTableName;
+    }
+
+    /**
+     * Зберігає або оновлює деталі товару в таблиці "${tableName}_товари".
+     * @static
+     * @method insertProductDetails
+     * @param {Object} dbSettings - Налаштування бази даних.
+     * @param {string} tableName - Назва активної таблиці пошуку.
+     * @param {Object} product - Об'єкт зі скрапленими даними товару.
+     */
+    static async insertProductDetails(dbSettings, tableName, product) {
+        const db = await this.connect(dbSettings);
+        const productTableName = `${tableName}_товари`;
+
+        try {
+            const stmt = db.prepare(`INSERT OR REPLACE INTO "${productTableName}" (
+                card_id, itemId, title, price, approxPrice, condition, availability,
+                shipping, returnsPolicy, sellerName, sellerScore, sellerPositivePercent,
+                breadcrumbs, itemSpecifics, images, galleryLinks,
+                descriptionText, descriptionHtml, descriptionStructured,
+                htmlFilePath, mediaFolderPath, url, scrapedAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+
+            await new Promise((resolve, reject) => {
+                stmt.run([
+                    product.card_id,
+                    product.itemId || '',
+                    product.title || '',
+                    product.price || '',
+                    product.approxPrice || '',
+                    product.condition || '',
+                    product.availability || '',
+                    product.shipping || '',
+                    product.returnsPolicy || '',
+                    product.seller?.name || product.sellerName || '',
+                    product.seller?.score || product.sellerScore || '',
+                    product.seller?.positivePercent || product.sellerPositivePercent || '',
+                    typeof product.breadcrumbs === 'string' ? product.breadcrumbs : JSON.stringify(product.breadcrumbs || []),
+                    typeof product.itemSpecifics === 'string' ? product.itemSpecifics : JSON.stringify(product.itemSpecifics || {}),
+                    typeof product.images === 'string' ? product.images : JSON.stringify(product.images || []),
+                    typeof product.galleryLinks === 'string' ? product.galleryLinks : JSON.stringify(product.galleryLinks || []),
+                    product.descriptionText || '',
+                    product.descriptionHtml || '',
+                    typeof product.descriptionStructured === 'string' ? product.descriptionStructured : JSON.stringify(product.descriptionStructured || {}),
+                    product.htmlFilePath || null,
+                    product.mediaFolderPath || null,
+                    product.url || '',
+                    product.scrapedAt || new Date().toISOString(),
+                ], function (err) {
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
+            stmt.finalize();
+        } finally {
+            db.close();
+        }
+    }
+
+    /**
+     * Отримує список збережених товарів для заданої таблиці.
+     * @static
+     * @method getProductDetailsList
+     * @param {Object} dbSettings - Налаштування бази даних.
+     * @param {string} tableName - Назва активної таблиці пошуку.
+     * @returns {Promise<Object[]>}
+     */
+    static async getProductDetailsList(dbSettings, tableName) {
+        const db = await this.connect(dbSettings);
+        const productTableName = `${tableName}_товари`;
+        try {
+            const tableExists = await this.get(
+                db,
+                "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+                [productTableName],
+            );
+            if (!tableExists) return [];
+
+            const rows = await this.all(db, `SELECT * FROM "${productTableName}"`);
+            return rows.map((row) => ({
+                ...row,
+                breadcrumbs: row.breadcrumbs ? JSON.parse(row.breadcrumbs) : [],
+                itemSpecifics: row.itemSpecifics ? JSON.parse(row.itemSpecifics) : {},
+                images: row.images ? JSON.parse(row.images) : [],
+                galleryLinks: row.galleryLinks ? JSON.parse(row.galleryLinks) : [],
+                descriptionStructured: row.descriptionStructured ? JSON.parse(row.descriptionStructured) : {},
+            }));
+        } finally {
+            db.close();
+        }
+    }
+
+    /**
      * Отримує список усіх збережених таблиць скрапінгу разом із кількістю рядків у них.
      * @static
      * @method getAllTablesWithCounts
@@ -179,7 +315,7 @@ export class DBService {
         try {
             const tables = await this.all(
                 db,
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'tbl_%' ORDER BY name DESC",
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'tbl_%' AND name NOT LIKE '%_товари' ORDER BY name DESC",
             );
             const result = [];
             for (const table of tables) {
@@ -208,7 +344,7 @@ export class DBService {
         try {
             const result = await this.get(
                 db,
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'tbl_%' ORDER BY name DESC LIMIT 1",
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'tbl_%' AND name NOT LIKE '%_товари' ORDER BY name DESC LIMIT 1",
             );
             return result ? result.name : null;
         } finally {

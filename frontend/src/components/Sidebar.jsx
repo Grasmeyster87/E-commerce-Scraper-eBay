@@ -14,6 +14,12 @@ export default function Sidebar({
     pagination,
     scrapeAllPages,
     setScrapeAllPages,
+    scrapeProductPages = true,
+    setScrapeProductPages,
+    saveProductHtml = false,
+    setSaveProductHtml,
+    saveProductMedia = false,
+    setSaveProductMedia,
     onNextPage,
     loading,
     maxScrapePages,
@@ -135,6 +141,69 @@ export default function Sidebar({
                                     className="w-4 h-4 rounded text-indigo-600 bg-slate-950 border-slate-800 focus:ring-indigo-500 cursor-pointer"
                                 />
                             </div>
+
+                            {/* Scrape Product Pages Toggle */}
+                            <div className="bg-slate-950/60 border border-slate-900 p-3 rounded-xl flex items-center justify-between">
+                                <div>
+                                    <p className="text-xs font-mono text-slate-300">
+                                        {t('sidebar.scrapeProductPages')}
+                                    </p>
+                                    <p className="text-[9px] font-mono text-slate-600">
+                                        {t('sidebar.scrapeProductPagesSubtitle')}
+                                    </p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={scrapeProductPages}
+                                    onChange={(e) =>
+                                        setScrapeProductPages && setScrapeProductPages(e.target.checked)
+                                    }
+                                    className="w-4 h-4 rounded text-indigo-600 bg-slate-950 border-slate-800 focus:ring-indigo-500 cursor-pointer"
+                                />
+                            </div>
+
+                            {/* Child options for Product Page Scraping */}
+                            {scrapeProductPages && (
+                                <div className="space-y-2 pl-3 border-l-2 border-indigo-500/30 ml-1 animate-slideDown">
+                                    <div className="bg-slate-950/40 border border-slate-900 p-2.5 rounded-xl flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs font-mono text-slate-300">
+                                                {t('sidebar.saveProductHtml')}
+                                            </p>
+                                            <p className="text-[9px] font-mono text-slate-600">
+                                                {t('sidebar.saveProductHtmlSubtitle')}
+                                            </p>
+                                        </div>
+                                        <input
+                                            type="checkbox"
+                                            checked={saveProductHtml}
+                                            onChange={(e) =>
+                                                setSaveProductHtml && setSaveProductHtml(e.target.checked)
+                                            }
+                                            className="w-4 h-4 rounded text-indigo-600 bg-slate-950 border-slate-800 focus:ring-indigo-500 cursor-pointer"
+                                        />
+                                    </div>
+
+                                    <div className="bg-slate-950/40 border border-slate-900 p-2.5 rounded-xl flex items-center justify-between">
+                                        <div>
+                                            <p className="text-xs font-mono text-slate-300">
+                                                {t('sidebar.saveProductMedia')}
+                                            </p>
+                                            <p className="text-[9px] font-mono text-slate-600">
+                                                {t('sidebar.saveProductMediaSubtitle')}
+                                            </p>
+                                        </div>
+                                        <input
+                                            type="checkbox"
+                                            checked={saveProductMedia}
+                                            onChange={(e) =>
+                                                setSaveProductMedia && setSaveProductMedia(e.target.checked)
+                                            }
+                                            className="w-4 h-4 rounded text-indigo-600 bg-slate-950 border-slate-800 focus:ring-indigo-500 cursor-pointer"
+                                        />
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Bounded Target Execution */}
                             {!scrapeAllPages && (

@@ -7,6 +7,7 @@ import { DBService } from './utils/dbService.js';
 import { CardService } from './utils/cardProcessor.js';
 import { SettingsDBService } from './utils/settingsDbService.js';
 import { LinkChecker } from './utils/linkChecker.js';
+import { ProductScraperService } from './services/productScraperService.js';
 
 const app = express();
 const PORT = process.env.PORT || 5050;
@@ -17,6 +18,9 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // MAIN SCRAPING AND DB SAVING PROCESS
 app.post('/api/scrape', async (req, res) => {
+    // Disable HTTP timeout for extensive scraping processes
+    req.setTimeout(0);
+
     const {
         query,
         searchMode,
@@ -27,10 +31,13 @@ app.post('/api/scrape', async (req, res) => {
         dbSettings,
         pageDelays,
         currentPage,
+        scrapeProductPages = true,
+        saveProductHtml = false,
+        saveProductMedia = false,
     } = req.body;
     try {
         console.log(
-            `🚀 Backend received -> Action: [${action.toUpperCase()}] | Table: ${activeTable || 'None'}`,
+            `🚀 Backend received -> Action: [${action.toUpperCase()}] | Table: ${activeTable || 'None'} | ScrapeProducts: ${scrapeProductPages} | SaveHtml: ${saveProductHtml} | SaveMedia: ${saveProductMedia}`,
         );
 
         // Collect raw data from the website
@@ -65,6 +72,21 @@ app.post('/api/scrape', async (req, res) => {
         // Save cards to SQLite (they are appended to the same table)
         if (processedCards.length > 0) {
             await DBService.insertCards(dbSettings, tableName, processedCards);
+        }
+
+        // Скрапінг сторінок кожного товару (якщо опція увімкнена)
+        if (scrapeProductPages && processedCards.length > 0) {
+            console.log(`🛍️ Початок скрапінгу детальних сторінок для ${processedCards.length} товарів...`);
+            await ProductScraperService.scrapeProductsForCards(
+                processedCards,
+                tableName,
+                dbSettings,
+                {
+                    saveProductHtml,
+                    saveProductMedia,
+                    pageDelays,
+                },
+            );
         }
 
         // Return the name back so the frontend can lock it in its loop
@@ -228,13 +250,27 @@ app.delete('/api/tables/:tableName', async (req, res) => {
         // We use the correct methods of your DBService
         const db = await DBService.connect(dbSettings);
         await DBService.run(db, `DROP TABLE IF EXISTS ${tableName}`);
+        await DBService.run(db, `DROP TABLE IF EXISTS "${tableName}_товари"`);
         db.close();
 
-        console.log(`🗑️ Table dropped from database: ${tableName}`);
+        console.log(`🗑️ Table dropped from database: ${tableName} and "${tableName}_товари"`);
         res.json({ success: true, message: `Table ${tableName} successfully deleted.` });
     } catch (error) {
         console.error(`Error deleting table ${tableName}:`, error);
         res.status(500).json({ error: error.message });
+    }
+});
+
+// Endpoint for fetching scraped product details for a given table
+app.post('/api/products/list', async (req, res) => {
+    const { dbSettings, tableName } = req.body;
+    if (!tableName) return res.json({ products: [] });
+
+    try {
+        const products = await DBService.getProductDetailsList(dbSettings, tableName);
+        res.json({ success: true, products });
+    } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 
