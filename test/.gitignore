@@ -1,0 +1,4 @@
+node_modules/
+browser_profile/
+debug/*.html
+debug/*.png

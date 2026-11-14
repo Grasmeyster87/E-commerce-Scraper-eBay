@@ -1,0 +1,26 @@
+{
+  "name": "ebay-product-scraper-test",
+  "version": "1.0.0",
+  "description": "Автономний тестовий модуль для скрапінгу та аналізу тегів сторінки товару eBay",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "node --watch index.js",
+    "launch-chrome": "launch_chrome.bat"
+  },
+  "keywords": [
+    "scraper",
+    "parser",
+    "ebay",
+    "product-page",
+    "puppeteer"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "puppeteer": "^24.42.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  }
+}
