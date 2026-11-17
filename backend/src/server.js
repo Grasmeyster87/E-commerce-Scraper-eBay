@@ -250,10 +250,11 @@ app.delete('/api/tables/:tableName', async (req, res) => {
         // We use the correct methods of your DBService
         const db = await DBService.connect(dbSettings);
         await DBService.run(db, `DROP TABLE IF EXISTS ${tableName}`);
+        await DBService.run(db, `DROP TABLE IF EXISTS "${tableName}_goods"`);
         await DBService.run(db, `DROP TABLE IF EXISTS "${tableName}_товари"`);
         db.close();
 
-        console.log(`🗑️ Table dropped from database: ${tableName} and "${tableName}_товари"`);
+        console.log(`🗑️ Table dropped from database: ${tableName} (and "${tableName}_goods")`);
         res.json({ success: true, message: `Table ${tableName} successfully deleted.` });
     } catch (error) {
         console.error(`Error deleting table ${tableName}:`, error);

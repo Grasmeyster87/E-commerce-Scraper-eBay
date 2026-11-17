@@ -8,8 +8,8 @@ const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Сервіс для скрапінгу детальних сторінок кожного товару.
- * Зберігає дані в окрему таблицю "${tableName}_товари",
- * а також (за бажанням) зберігає HTML та завантажує медіа-файли в окрему папку.
+ * Зберігає дані в окрему таблицю "${tableName}_goods",
+ * а також (за бажанням) зберігає HTML та завантажує медіа-файли в окрему папку з назвою таблиці товарів.
  */
 export class ProductScraperService {
     /**
@@ -119,18 +119,18 @@ export class ProductScraperService {
 
         if (!cards || cards.length === 0) return;
 
-        // Створюємо окрему таблицю для товарів: "${tableName}_товари"
+        // Створюємо окрему таблицю для товарів: "${tableName}_goods"
         const productTableName = await DBService.createProductTable(dbSettings, tableName);
 
-        // Визначаємо шлях до папки бази даних
+        // Визначаємо шлях для збереження файлів: створюємо папку з назвою таблиці товарів
         const dbPath = DBService.getDbPath(dbSettings);
         const dbDir = path.dirname(dbPath);
-        const dbName = path.basename(dbPath, path.extname(dbPath));
+        const tableFolder = path.join(dbDir, productTableName);
 
         console.log(`\n======================================================================`);
         console.log(`🛍️ ЗАПУСК СКРАПІНГУ СТОРІНОК ТОВАРІВ (Всього: ${cards.length})`);
         console.log(`🗄️ Таблиця товарів: "${productTableName}"`);
-        console.log(`📁 Директорія БД: "${path.join(dbDir, dbName)}"`);
+        console.log(`📁 Директорія таблиці товарів: "${tableFolder}"`);
         console.log(`💾 Збереження HTML: ${saveProductHtml ? 'УВІМКНЕНО' : 'ВИМКНЕНО'}`);
         console.log(`🖼️ Збереження фото/медіа: ${saveProductMedia ? 'УВІМКНЕНО' : 'ВИМКНЕНО'}`);
         console.log(`======================================================================\n`);
@@ -221,8 +221,8 @@ export class ProductScraperService {
                             .trim()
                             .substring(0, 80) || card.id;
 
-                        // Шлях: <папка бази данних>/<назва товару>
-                        const productFolder = path.join(dbDir, dbName, safeTitle);
+                        // Шлях: <папка з назвою таблиці товарів>/<назва товару>
+                        const productFolder = path.join(tableFolder, safeTitle);
                         if (!fs.existsSync(productFolder)) {
                             fs.mkdirSync(productFolder, { recursive: true });
                         }

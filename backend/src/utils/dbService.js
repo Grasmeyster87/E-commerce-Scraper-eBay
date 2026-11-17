@@ -109,6 +109,79 @@ export class DBService {
     }
 
     /**
+     * Витягує чистий ключовий термін або назву категорії з пошукового запиту чи URL.
+     * Відфільтровує службові префікси: https, http, www, ebay.com, /b/, /sch/, /itm/ тощо,
+     * щоб вони не потрапляли в назву таблиці.
+     * @static
+     * @method extractCleanQueryKeyword
+     * @param {string} rawQuery - Початковий рядок пошуку або посилання
+     * @returns {string} Очищене ключове слово (наприклад, 'intel', 'Cell_Phones_Smartphones')
+     */
+    static extractCleanQueryKeyword(rawQuery) {
+        if (!rawQuery || typeof rawQuery !== 'string') return 'search';
+
+        let str = rawQuery.trim();
+
+        // Перевіряємо, чи містить рядок ознаки URL-адреси
+        const isUrl = /^https?:\/\//i.test(str) || /ebay\.[a-z.]+/i.test(str) || str.startsWith('www.');
+
+        if (isUrl) {
+            try {
+                const urlToParse = /^https?:\/\//i.test(str) ? str : `https://${str}`;
+                const urlObj = new URL(urlToParse);
+
+                // 1. Пошуковий параметр _nkw (наприклад, ?_nkw=intel або ?_nkw=laptop)
+                const nkw = urlObj.searchParams.get('_nkw');
+                if (nkw && nkw.trim()) {
+                    return nkw.trim();
+                }
+
+                const pathname = urlObj.pathname;
+
+                // 2. Сторінка категорії (/b/Category-Name/...)
+                const bCategoryMatch = pathname.match(/\/b\/([^/]+)/i);
+                if (bCategoryMatch && bCategoryMatch[1]) {
+                    return bCategoryMatch[1];
+                }
+
+                // 3. Категорія через /sch/ (наприклад, /sch/Cell-Phones-Smartphones/...)
+                const schCategoryMatch = pathname.match(/\/sch\/([^/]+)/i);
+                if (schCategoryMatch && schCategoryMatch[1] && schCategoryMatch[1].toLowerCase() !== 'i.html') {
+                    return schCategoryMatch[1];
+                }
+
+                // 4. Сторінка товару (/itm/123456789)
+                const itmMatch = pathname.match(/\/itm\/(\d+)/i);
+                if (itmMatch && itmMatch[1]) {
+                    return `itm_${itmMatch[1]}`;
+                }
+
+                // 5. Інші шляхи — беремо перший змістовний сегмент шляху, виключаючи b, sch, itm тощо
+                const pathSegments = pathname
+                    .split('/')
+                    .filter((seg) => seg && !['b', 'sch', 'itm', 'i.html', 'index.html'].includes(seg.toLowerCase()));
+                if (pathSegments.length > 0) {
+                    return pathSegments[0];
+                }
+            } catch {
+                str = str
+                    .replace(/^https?:\/\//i, '')
+                    .replace(/^www\./i, '')
+                    .replace(/^ebay\.[a-z.]+\/?/i, '');
+            }
+        }
+
+        // Очищаємо залишки можливих URL-шляхів
+        return str
+            .replace(/^https?:?\/?\/?/i, '')
+            .replace(/^www\./i, '')
+            .replace(/^ebay\.[a-z.]+\/?/i, '')
+            .replace(/^\/?b\/?/i, '')
+            .replace(/^\/?sch\/?/i, '')
+            .trim() || 'search';
+    }
+
+    /**
      * Creates a distinct relational schema table tailored specifically for an isolated search footprint.
      * Sanitizes source search tokens to eliminate character injection risks and avoid schema collision anomalies.
      * * @static
@@ -121,30 +194,29 @@ export class DBService {
     static async createTableForQuery(dbSettings, queryName, searchMode = 'query') {
         const db = await this.connect(dbSettings);
 
-        // Determine site name and search keyword
         let siteName = 'ebay_com';
-        let keyword = queryName;
 
-        if (searchMode === 'link') {
+        // Витягуємо домен, якщо передано URL
+        if (queryName && (/^https?:\/\//i.test(queryName) || /ebay\.[a-z.]+/i.test(queryName))) {
             try {
-                const urlObj = new URL(queryName);
-                // Extract hostname, e.g. www.ebay.com -> ebay_com
+                const urlToParse = /^https?:\/\//i.test(queryName) ? queryName : `https://${queryName}`;
+                const urlObj = new URL(urlToParse);
                 siteName = urlObj.hostname.replace(/^www\./i, '').replace(/\./g, '_');
-                // Try to get search keyword from eBay url param _nkw
-                keyword = urlObj.searchParams.get('_nkw') || 'link_search';
-            } catch (error) {
-                // Fallback if URL is invalid
-                keyword = 'link_search';
-            }
+            } catch {}
         }
 
-        const safeQuery = keyword
+        // Очищаємо ключове слово від адреси сайту та технічних шляхів (/b/, /sch/ тощо)
+        const cleanKeyword = this.extractCleanQueryKeyword(queryName);
+
+        const safeQuery = cleanKeyword
             .replace(/[^a-zA-Z0-9]/g, '_')
-            .substring(0, 30);
-            
+            .replace(/_+/g, '_')
+            .replace(/^_|_$/g, '')
+            .substring(0, 30) || 'search';
+
         // Format date as YYYY_MM_DDT... for uniqueness
         const timestamp = new Date().toISOString().replace(/[:.-]/g, '_');
-        
+
         const tableName = `tbl_${siteName}_${safeQuery}_${timestamp}`;
 
         const schema = `
@@ -168,7 +240,7 @@ export class DBService {
     }
 
     /**
-     * Створює окрему таблицю для товарів "${tableName}_товари",
+     * Створює окрему таблицю для товарів "${tableName}_goods",
      * пов'язану з активною таблицею через foreign key (card_id -> id).
      * @static
      * @method createProductTable
@@ -178,7 +250,7 @@ export class DBService {
      */
     static async createProductTable(dbSettings, tableName) {
         const db = await this.connect(dbSettings);
-        const productTableName = `${tableName}_товари`;
+        const productTableName = `${tableName}_goods`;
 
         const schema = `
             CREATE TABLE IF NOT EXISTS "${productTableName}" (
@@ -214,7 +286,7 @@ export class DBService {
     }
 
     /**
-     * Зберігає або оновлює деталі товару в таблиці "${tableName}_товари".
+     * Зберігає або оновлює деталі товару в таблиці "${tableName}_goods".
      * @static
      * @method insertProductDetails
      * @param {Object} dbSettings - Налаштування бази даних.
@@ -223,7 +295,7 @@ export class DBService {
      */
     static async insertProductDetails(dbSettings, tableName, product) {
         const db = await this.connect(dbSettings);
-        const productTableName = `${tableName}_товари`;
+        const productTableName = `${tableName}_goods`;
 
         try {
             const stmt = db.prepare(`INSERT OR REPLACE INTO "${productTableName}" (
@@ -272,6 +344,7 @@ export class DBService {
 
     /**
      * Отримує список збережених товарів для заданої таблиці.
+     * Шукає "${tableName}_goods" (або стару назву "${tableName}_товари" для сумісності).
      * @static
      * @method getProductDetailsList
      * @param {Object} dbSettings - Налаштування бази даних.
@@ -280,16 +353,24 @@ export class DBService {
      */
     static async getProductDetailsList(dbSettings, tableName) {
         const db = await this.connect(dbSettings);
-        const productTableName = `${tableName}_товари`;
         try {
-            const tableExists = await this.get(
+            let targetTable = `${tableName}_goods`;
+            let tableExists = await this.get(
                 db,
                 "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
-                [productTableName],
+                [targetTable],
             );
+            if (!tableExists) {
+                targetTable = `${tableName}_товари`;
+                tableExists = await this.get(
+                    db,
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+                    [targetTable],
+                );
+            }
             if (!tableExists) return [];
 
-            const rows = await this.all(db, `SELECT * FROM "${productTableName}"`);
+            const rows = await this.all(db, `SELECT * FROM "${targetTable}"`);
             return rows.map((row) => ({
                 ...row,
                 breadcrumbs: row.breadcrumbs ? JSON.parse(row.breadcrumbs) : [],
@@ -305,6 +386,7 @@ export class DBService {
 
     /**
      * Отримує список усіх збережених таблиць скрапінгу разом із кількістю рядків у них.
+     * Ігнорує дочірні таблиці товарів (_goods та _товари).
      * @static
      * @method getAllTablesWithCounts
      * @param {Object} dbSettings - Налаштування бази даних.
@@ -315,7 +397,7 @@ export class DBService {
         try {
             const tables = await this.all(
                 db,
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'tbl_%' AND name NOT LIKE '%_товари' ORDER BY name DESC",
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'tbl_%' AND name NOT LIKE '%_goods' AND name NOT LIKE '%_товари' ORDER BY name DESC",
             );
             const result = [];
             for (const table of tables) {
@@ -334,6 +416,7 @@ export class DBService {
     /**
      * Scans structural system catalogs to return the most recently provisioned search dataset table.
      * Used for restoring historical sessions upon initial frontend dashboard boots.
+     * Ігнорує дочірні таблиці товарів (_goods та _товари).
      * * @static
      * @method getLatestTable
      * @param {Object} dbSettings - System context connection setup configurations.
@@ -344,7 +427,7 @@ export class DBService {
         try {
             const result = await this.get(
                 db,
-                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'tbl_%' AND name NOT LIKE '%_товари' ORDER BY name DESC LIMIT 1",
+                "SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'tbl_%' AND name NOT LIKE '%_goods' AND name NOT LIKE '%_товари' ORDER BY name DESC LIMIT 1",
             );
             return result ? result.name : null;
         } finally {
