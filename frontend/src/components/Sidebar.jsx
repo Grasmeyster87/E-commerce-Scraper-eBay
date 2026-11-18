@@ -34,6 +34,7 @@ export default function Sidebar({
     setPageDelays,
     handleDeleteActiveTable,
     handleCheckLinks,
+    handleScrapeExistingTable,
 }) {
     const { t } = useTranslation();
 
@@ -243,6 +244,16 @@ export default function Sidebar({
                                 className="w-full bg-slate-900 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-855 text-slate-300 font-mono text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                                 <span>🔄</span> {t('sidebar.manualNextPage')}
+                            </button>
+
+                            {/* Scraping an existing table */}
+                            <button
+                                type="button"
+                                onClick={handleScrapeExistingTable}
+                                disabled={!activeTable || loading}
+                                className="w-full bg-slate-900 border border-cyan-500/50 hover:bg-cyan-950/40 text-cyan-400 font-mono text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                                <span>📦</span> {t('sidebar.scrapeExistingTable')}
                             </button>
 
                             {/* Live Visualizer Link */}

@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar';
 import ProductCard from './components/ProductCard';
 import ProgressModal from './components/ProgressModal';
 import LinkCheckingModal from './components/LinkCheckingModal';
+import ExistingTableScrapeModal from './components/ExistingTableScrapeModal';
 import LanguageSelector from './components/LanguageSelector';
 import ThemeSelector from './components/ThemeSelector';
 import { useTranslation } from './locales/LanguageContext';
@@ -340,6 +341,17 @@ function App() {
     const handleCheckLinks = () => {
         if (!activeTable) return;
         setLinkCheckState({ isOpen: true, tableName: activeTable });
+    };
+
+    // State for Scraping Existing Table Modal
+    const [isScrapeExistingModalOpen, setIsScrapeExistingModalOpen] = useState(false);
+
+    const handleOpenScrapeExistingTable = () => {
+        if (!activeTable) {
+            alert(t('existingTableScrape.noActiveTableAlert') || 'Будь ласка, оберіть активну таблицю.');
+            return;
+        }
+        setIsScrapeExistingModalOpen(true);
     };
 
     /**
@@ -835,6 +847,7 @@ function App() {
                         setPageDelays={setPageDelays}
                         handleDeleteActiveTable={handleDeleteActiveTable}
                         handleCheckLinks={handleCheckLinks}
+                        handleScrapeExistingTable={handleOpenScrapeExistingTable}
                     />
 
                     {/* Content Section & Product List Feed */}
@@ -923,6 +936,21 @@ function App() {
                         }
                     }
                     fetchAvailableTables();
+                }}
+            />
+
+            <ExistingTableScrapeModal
+                isOpen={isScrapeExistingModalOpen}
+                onClose={() => {
+                    setIsScrapeExistingModalOpen(false);
+                    fetchAvailableTables();
+                }}
+                tableName={activeTable}
+                dbSettings={dbSettings}
+                options={{
+                    saveProductHtml,
+                    saveProductMedia,
+                    pageDelays,
                 }}
             />
 

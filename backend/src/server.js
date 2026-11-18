@@ -332,6 +332,89 @@ app.get('/api/check-links/stream/:jobId', (req, res) => {
     });
 });
 
+// ==========================================
+// SCRAPING EXISTING TABLE ENDPOINTS
+// ==========================================
+
+// 1. Check existing table status and logs
+app.post('/api/scrape-existing/status', async (req, res) => {
+    const { tableName, dbSettings } = req.body;
+    if (!tableName) return res.status(400).json({ error: 'Table name is required' });
+
+    try {
+        const status = await ProductScraperService.checkExistingTableStatus(tableName, dbSettings);
+        res.json({ success: true, ...status });
+    } catch (error) {
+        console.error('❌ Error checking existing table status:', error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 2. Start scraping job for existing table
+app.post('/api/scrape-existing/start', async (req, res) => {
+    const { tableName, dbSettings, saveProductHtml, saveProductMedia, pageDelays } = req.body;
+    if (!tableName) return res.status(400).json({ error: 'Table name is required' });
+
+    const jobId = Date.now().toString();
+    ProductScraperService.jobs[jobId] = {
+        id: jobId,
+        tableName,
+        status: 'starting',
+        res: null,
+        isPaused: false,
+        isCancelled: false,
+    };
+
+    // Run job in background
+    ProductScraperService.runExistingTableJob(jobId, tableName, dbSettings, {
+        saveProductHtml,
+        saveProductMedia,
+        pageDelays,
+    }).catch(console.error);
+
+    res.json({ success: true, jobId });
+});
+
+// 3. Pause / Resume / Cancel job
+app.post('/api/scrape-existing/action', (req, res) => {
+    const { jobId, action } = req.body;
+    const job = ProductScraperService.jobs[jobId];
+
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+
+    if (action === 'pause') {
+        job.isPaused = true;
+    } else if (action === 'resume') {
+        job.isPaused = false;
+    } else if (action === 'cancel') {
+        job.isCancelled = true;
+    }
+
+    res.json({ success: true, isPaused: job.isPaused, isCancelled: job.isCancelled });
+});
+
+// 4. SSE Stream for real-time progress and logs
+app.get('/api/scrape-existing/stream/:jobId', (req, res) => {
+    const { jobId } = req.params;
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    const job = ProductScraperService.jobs[jobId];
+
+    if (!job) {
+        res.write(`data: ${JSON.stringify({ type: 'error', message: 'Job not found or expired' })}\n\n`);
+        return res.end();
+    }
+
+    job.res = res;
+
+    req.on('close', () => {
+        job.res = null;
+    });
+});
+
 // GET: Retrieve active visualization layout strategy profile
 app.get('/api/settings/visualizer-mode', async (req, res) => {
     try {
