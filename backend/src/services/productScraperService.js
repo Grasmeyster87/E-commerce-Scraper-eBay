@@ -5,6 +5,7 @@ import { exec } from 'child_process';
 import { fileURLToPath } from 'url';
 import { ProductParser } from './productParser.js';
 import { DBService } from '../utils/dbService.js';
+import { BrowserService } from './browser.js';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -18,41 +19,11 @@ export class ProductScraperService {
     static jobs = {};
 
     /**
-     * Підключення до браузера Chrome. Якщо Chrome на порті 9222 не запущено,
-     * автоматично запускає launch_chrome.bat та чекає на запуск.
+     * Підключення до браузера Chrome. Використовує BrowserService для гарантії відповідного режиму (GUI / Headless).
      */
-    static async connectBrowser() {
-        const __filename = fileURLToPath(import.meta.url);
-        const __dirname = path.dirname(__filename);
-        const scriptPath = path.join(__dirname, '../launch_chrome.bat');
-
-        let browser = await puppeteer
-            .connect({
-                browserURL: 'http://127.0.0.1:9222',
-                defaultViewport: null,
-            })
-            .catch(() => null);
-
-        if (!browser) {
-            console.log('🌐 Chrome не виявлено. Запускаємо через launch_chrome.bat...');
-            exec(`"${scriptPath}"`, (err) => {
-                if (err) console.error('❌ Помилка запуску Chrome:', err.message);
-            });
-
-            for (let attempt = 1; attempt <= 10; attempt++) {
-                try {
-                    await delay(1000);
-                    browser = await puppeteer.connect({
-                        browserURL: 'http://127.0.0.1:9222',
-                        defaultViewport: null,
-                    });
-                    break;
-                } catch (connectError) {
-                    if (attempt === 10) throw new Error('Chrome не відповідає на порті 9222 після 10 спроб.');
-                }
-            }
-        }
-        return browser;
+    static async connectBrowser(options = {}) {
+        const headless = !!(options.scrapeWithoutGB || options.scrapeWithGBFP);
+        return await BrowserService.ensureBrowser({ headless });
     }
 
     /**
@@ -461,7 +432,7 @@ export class ProductScraperService {
             // Підключення до браузера (автоматично запускає Chrome при необхідності)
             let browser = null;
             try {
-                browser = await this.connectBrowser();
+                browser = await this.connectBrowser(options);
             } catch (browserErr) {
                 job.status = 'error';
                 logData.status = 'error';
@@ -804,7 +775,7 @@ export class ProductScraperService {
 
         let browser = null;
         try {
-            browser = await this.connectBrowser();
+            browser = await this.connectBrowser(options);
         } catch (e) {
             console.error('❌ Не вдалося підключитися до Chrome на порт 9222 для скрапінгу товарів:', e.message);
             this.appendTxtLog(tableFolder, `[ПОМИЛКА БРАУЗЕРА] ${e.message}`);

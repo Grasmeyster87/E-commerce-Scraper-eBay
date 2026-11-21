@@ -82,6 +82,10 @@ function App() {
     const [saveProductHtml, setSaveProductHtml] = useState(false);
     const [saveProductMedia, setSaveProductMedia] = useState(false);
 
+    // Browser Controller Modes (GB = Graphical Browser, GBFP = Graphical Browser First Page)
+    const [scrapeWithoutGB, setScrapeWithoutGB] = useState(false);
+    const [scrapeWithGBFP, setScrapeWithGBFP] = useState(false);
+
     // Frontend-only pagination state for rendering localized chunks of accumulated data
     const [frontendPage, setFrontendPage] = useState(1);
 
@@ -99,6 +103,8 @@ function App() {
     const scrapeProductPagesRef = useRef(scrapeProductPages);
     const saveProductHtmlRef = useRef(saveProductHtml);
     const saveProductMediaRef = useRef(saveProductMedia);
+    const scrapeWithoutGBRef = useRef(scrapeWithoutGB);
+    const scrapeWithGBFPref = useRef(scrapeWithGBFP);
 
     useEffect(() => {
         autoScrapeRef.current = scrapeAllPages;
@@ -115,6 +121,12 @@ function App() {
     useEffect(() => {
         saveProductMediaRef.current = saveProductMedia;
     }, [saveProductMedia]);
+    useEffect(() => {
+        scrapeWithoutGBRef.current = scrapeWithoutGB;
+    }, [scrapeWithoutGB]);
+    useEffect(() => {
+        scrapeWithGBFPref.current = scrapeWithGBFP;
+    }, [scrapeWithGBFP]);
 
     // Cache state modifications to localStorage
     useEffect(() => {
@@ -251,6 +263,8 @@ function App() {
                 scrapeProductPages: scrapeProductPagesRef.current,
                 saveProductHtml: saveProductHtmlRef.current,
                 saveProductMedia: saveProductMediaRef.current,
+                scrapeWithoutGB: scrapeWithoutGBRef.current,
+                scrapeWithGBFP: scrapeWithGBFPref.current,
             });
 
             if (!response.data.success)
@@ -848,6 +862,10 @@ function App() {
                         handleDeleteActiveTable={handleDeleteActiveTable}
                         handleCheckLinks={handleCheckLinks}
                         handleScrapeExistingTable={handleOpenScrapeExistingTable}
+                        scrapeWithoutGB={scrapeWithoutGB}
+                        setScrapeWithoutGB={setScrapeWithoutGB}
+                        scrapeWithGBFP={scrapeWithGBFP}
+                        setScrapeWithGBFP={setScrapeWithGBFP}
                     />
 
                     {/* Content Section & Product List Feed */}
@@ -951,6 +969,8 @@ function App() {
                     saveProductHtml,
                     saveProductMedia,
                     pageDelays,
+                    scrapeWithoutGB,
+                    scrapeWithGBFP,
                 }}
             />
 

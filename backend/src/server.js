@@ -8,6 +8,7 @@ import { CardService } from './utils/cardProcessor.js';
 import { SettingsDBService } from './utils/settingsDbService.js';
 import { LinkChecker } from './utils/linkChecker.js';
 import { ProductScraperService } from './services/productScraperService.js';
+import { BrowserService } from './services/browser.js';
 
 const app = express();
 const PORT = process.env.PORT || 5050;
@@ -34,10 +35,12 @@ app.post('/api/scrape', async (req, res) => {
         scrapeProductPages = true,
         saveProductHtml = false,
         saveProductMedia = false,
+        scrapeWithoutGB = false,
+        scrapeWithGBFP = false,
     } = req.body;
     try {
         console.log(
-            `🚀 Backend received -> Action: [${action.toUpperCase()}] | Table: ${activeTable || 'None'} | ScrapeProducts: ${scrapeProductPages} | SaveHtml: ${saveProductHtml} | SaveMedia: ${saveProductMedia}`,
+            `🚀 Backend received -> Action: [${action.toUpperCase()}] | Table: ${activeTable || 'None'} | ScrapeProducts: ${scrapeProductPages} | SaveHtml: ${saveProductHtml} | SaveMedia: ${saveProductMedia} | WithoutGB: ${scrapeWithoutGB} | WithGBFP: ${scrapeWithGBFP}`,
         );
 
         // Collect raw data from the website
@@ -49,6 +52,7 @@ app.post('/api/scrape', async (req, res) => {
             itemsPerPage,
             pageDelays,
             currentPage,
+            { scrapeWithoutGB, scrapeWithGBFP },
         );
 
         // Process the cards
@@ -85,6 +89,8 @@ app.post('/api/scrape', async (req, res) => {
                     saveProductHtml,
                     saveProductMedia,
                     pageDelays,
+                    scrapeWithoutGB,
+                    scrapeWithGBFP,
                 },
             );
         }
@@ -352,7 +358,15 @@ app.post('/api/scrape-existing/status', async (req, res) => {
 
 // 2. Start scraping job for existing table
 app.post('/api/scrape-existing/start', async (req, res) => {
-    const { tableName, dbSettings, saveProductHtml, saveProductMedia, pageDelays } = req.body;
+    const {
+        tableName,
+        dbSettings,
+        saveProductHtml,
+        saveProductMedia,
+        pageDelays,
+        scrapeWithoutGB = false,
+        scrapeWithGBFP = false,
+    } = req.body;
     if (!tableName) return res.status(400).json({ error: 'Table name is required' });
 
     const jobId = Date.now().toString();
@@ -370,6 +384,8 @@ app.post('/api/scrape-existing/start', async (req, res) => {
         saveProductHtml,
         saveProductMedia,
         pageDelays,
+        scrapeWithoutGB,
+        scrapeWithGBFP,
     }).catch(console.error);
 
     res.json({ success: true, jobId });
@@ -413,6 +429,32 @@ app.get('/api/scrape-existing/stream/:jobId', (req, res) => {
     req.on('close', () => {
         job.res = null;
     });
+});
+
+// ==========================================
+// BROWSER CONTROLLER PROFILE ENDPOINTS
+// ==========================================
+
+// 1. Get browser profile folder size
+app.get('/api/browser/profile/size', (req, res) => {
+    try {
+        const sizeData = BrowserService.getProfileSize();
+        res.json({ success: true, ...sizeData });
+    } catch (error) {
+        console.error('❌ Error calculating browser profile size:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 2. Clear browser profile folder
+app.post('/api/browser/profile/clear', async (req, res) => {
+    try {
+        const result = await BrowserService.clearProfile();
+        res.json({ success: true, ...result });
+    } catch (error) {
+        console.error('❌ Error clearing browser profile:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // GET: Retrieve active visualization layout strategy profile

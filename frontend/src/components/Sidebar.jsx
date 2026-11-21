@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ScrapingDelays from './ScrapingDelays';
 import axios from 'axios';
 import { useTranslation } from '../locales/LanguageContext';
@@ -35,16 +35,72 @@ export default function Sidebar({
     handleDeleteActiveTable,
     handleCheckLinks,
     handleScrapeExistingTable,
+    scrapeWithoutGB = false,
+    setScrapeWithoutGB,
+    scrapeWithGBFP = false,
+    setScrapeWithGBFP,
 }) {
     const { t } = useTranslation();
 
     // State to manage the expanded status of each menu section
     const [openSections, setOpenSections] = useState({
         automation: true, // Automation is open by default
+        browser: true, // Browser controller is open by default
         delays: false, // Delays dropdown initialized
         storage: true, // Database and table selection are open
         exports: false, // Exports are collapsed for compactness
     });
+
+    // Browser Profile Size state & actions
+    const [profileSize, setProfileSize] = useState({ bytes: 0, formatted: '...' });
+    const [isClearingProfile, setIsClearingProfile] = useState(false);
+
+    const fetchProfileSize = async () => {
+        try {
+            const backendUrl =
+                import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
+            const res = await axios.get(`${backendUrl}/api/browser/profile/size`);
+            if (res.data.success) {
+                setProfileSize({
+                    bytes: res.data.bytes,
+                    formatted: res.data.formatted,
+                });
+            }
+        } catch (err) {
+            console.error('Failed to fetch browser profile size:', err);
+        }
+    };
+
+    useEffect(() => {
+        fetchProfileSize();
+    }, []);
+
+    const handleClearProfile = async () => {
+        const confirmClear = window.confirm(t('sidebar.confirmClearProfile'));
+        if (!confirmClear) return;
+
+        setIsClearingProfile(true);
+        try {
+            const backendUrl =
+                import.meta.env.VITE_BACKEND_URL || 'http://localhost:5050';
+            const res = await axios.post(`${backendUrl}/api/browser/profile/clear`);
+            if (res.data.success) {
+                setProfileSize({
+                    bytes: res.data.bytes,
+                    formatted: res.data.formatted,
+                });
+                alert(t('sidebar.profileClearedSuccess'));
+            } else {
+                throw new Error(res.data.error || 'Failed to clear profile');
+            }
+        } catch (err) {
+            console.error('Failed to clear browser profile:', err);
+            alert(t('sidebar.profileClearError', { error: err.message }));
+        } finally {
+            setIsClearingProfile(false);
+            fetchProfileSize();
+        }
+    };
 
     /**
      * Toggles the visibility state of an accordion section
@@ -275,6 +331,107 @@ export default function Sidebar({
                             >
                                 <span>🔗</span> {t('sidebar.linkChecking')}
                             </button>
+                        </div>
+                    )}
+                </div>
+
+                {/* SECTION 1.2: BROWSER CONTROLLER */}
+                <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-900/30 transition-all">
+                    <button
+                        type="button"
+                        onClick={() => toggleSection('browser')}
+                        className="w-full bg-slate-900/80 hover:bg-slate-900 px-4 py-3 text-left text-[11px] font-mono font-bold text-slate-300 flex items-center justify-between transition-colors cursor-pointer"
+                    >
+                        <span className="flex items-center gap-2">
+                            {t('sidebar.browserController')}
+                        </span>
+                        <span
+                            className={`text-slate-500 transition-transform duration-200 ${openSections.browser ? 'rotate-180' : ''}`}
+                        >
+                            ▼
+                        </span>
+                    </button>
+
+                    {openSections.browser && (
+                        <div className="p-4 bg-slate-950/40 border-t border-slate-900 space-y-4 animate-fadeIn">
+                            {/* Profile Size Display & Refresh */}
+                            <div className="bg-slate-950/60 border border-slate-900 p-3 rounded-xl flex items-center justify-between">
+                                <div className="min-w-0 pr-2">
+                                    <p className="text-[10px] font-mono text-slate-500">
+                                        {t('sidebar.browserProfileSize')}
+                                    </p>
+                                    <p className="text-xs font-mono font-bold text-cyan-400 truncate">
+                                        {profileSize.formatted || '0 B'}
+                                    </p>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={fetchProfileSize}
+                                    title={t('sidebar.refreshProfileSize')}
+                                    className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer"
+                                >
+                                    🔄
+                                </button>
+                            </div>
+
+                            {/* Clear Profile Button */}
+                            <button
+                                type="button"
+                                onClick={handleClearProfile}
+                                disabled={isClearingProfile || loading}
+                                className="w-full bg-slate-900 border border-rose-500/40 hover:bg-rose-950/30 text-rose-300 font-mono text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                                <span>🗑️</span>{' '}
+                                {isClearingProfile
+                                    ? t('sidebar.clearingProfile')
+                                    : t('sidebar.clearBrowserProfile')}
+                            </button>
+
+                            <hr className="border-slate-800/60" />
+
+                            {/* Scraping without GB Toggle */}
+                            <div className="bg-slate-950/60 border border-slate-900 p-3 rounded-xl flex items-center justify-between">
+                                <div className="pr-2">
+                                    <p className="text-xs font-mono text-slate-300">
+                                        {t('sidebar.scrapeWithoutGB')}
+                                    </p>
+                                    <p className="text-[9px] font-mono text-slate-600">
+                                        {t('sidebar.scrapeWithoutGBSubtitle')}
+                                    </p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={scrapeWithoutGB}
+                                    onChange={(e) => {
+                                        const val = e.target.checked;
+                                        setScrapeWithoutGB && setScrapeWithoutGB(val);
+                                        if (val && setScrapeWithGBFP) setScrapeWithGBFP(false);
+                                    }}
+                                    className="w-4 h-4 rounded text-indigo-600 bg-slate-950 border-slate-800 focus:ring-indigo-500 cursor-pointer"
+                                />
+                            </div>
+
+                            {/* Scraping with GBFP Toggle */}
+                            <div className="bg-slate-950/60 border border-slate-900 p-3 rounded-xl flex items-center justify-between">
+                                <div className="pr-2">
+                                    <p className="text-xs font-mono text-slate-300">
+                                        {t('sidebar.scrapeWithGBFP')}
+                                    </p>
+                                    <p className="text-[9px] font-mono text-slate-600">
+                                        {t('sidebar.scrapeWithGBFPSubtitle')}
+                                    </p>
+                                </div>
+                                <input
+                                    type="checkbox"
+                                    checked={scrapeWithGBFP}
+                                    onChange={(e) => {
+                                        const val = e.target.checked;
+                                        setScrapeWithGBFP && setScrapeWithGBFP(val);
+                                        if (val && setScrapeWithoutGB) setScrapeWithoutGB(false);
+                                    }}
+                                    className="w-4 h-4 rounded text-indigo-600 bg-slate-950 border-slate-800 focus:ring-indigo-500 cursor-pointer"
+                                />
+                            </div>
                         </div>
                     )}
                 </div>

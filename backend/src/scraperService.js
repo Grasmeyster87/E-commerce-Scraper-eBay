@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import puppeteer from 'puppeteer-extra';
 import { EbayScraper } from './services/scraper.js';
 import { FileHandler } from './utils/fileHandler.js';
+import { BrowserService } from './services/browser.js';
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -23,54 +24,67 @@ export async function runEbayScraper(
     itemsPerPage = 60,
     pageDelays = [3000],
     currentPage = 1,
+    browserOptions = {},
 ) {
-    const __filename = fileURLToPath(import.meta.url);
-    const __dirname = path.dirname(__filename);
-    const scriptPath = path.join(__dirname, 'launch_chrome.bat');
+    const { scrapeWithoutGB = false, scrapeWithGBFP = false } = browserOptions;
+
+    // Determine headless mode:
+    // 1. Scraping without GB: always headless
+    // 2. Scraping with GBFP: first page has GUI (for verification/captchas), subsequent pages are headless
+    let isHeadless = false;
+    if (scrapeWithoutGB) {
+        isHeadless = true;
+    } else if (scrapeWithGBFP) {
+        isHeadless = !(action === 'search' || currentPage <= 1);
+    }
 
     let browser = null;
 
     try {
-        console.log('🔍 Checking for an active Chrome debugging session...');
-        browser = await puppeteer
-            .connect({
-                browserURL: 'http://127.0.0.1:9222',
-                defaultViewport: null,
-            })
-            .catch(() => null);
+        let previousUrl = null;
 
-        if (!browser) {
-            console.log(
-                '🌐 Chrome not detected on port 9222. Initializing new runtime instance...',
-            );
-            exec(`"${scriptPath}"`, (err) => {
-                if (err)
-                    console.error(
-                        '❌ Failed to launch Chrome execution script:',
-                        err.message,
-                    );
-            });
-
-            for (let attempt = 1; attempt <= 10; attempt++) {
-                try {
-                    await delay(1000);
-                    browser = await puppeteer.connect({
+        // If switching from GUI to Headless for GBFP on page 2+:
+        if (scrapeWithGBFP && isHeadless && BrowserService.currentMode === 'gui') {
+            try {
+                const existing = await puppeteer
+                    .connect({
                         browserURL: 'http://127.0.0.1:9222',
                         defaultViewport: null,
-                    });
-                    break;
-                } catch (connectError) {
-                    if (attempt === 10)
-                        throw new Error(
-                            'Chrome took too long to launch and bind port 9222.',
-                        );
+                    })
+                    .catch(() => null);
+                if (existing) {
+                    const openPages = await existing.pages();
+                    if (openPages.length > 0) {
+                        previousUrl = openPages[0].url();
+                    }
                 }
-            }
+            } catch {}
         }
 
+        // Ensure browser is running in the requested mode (GUI or Headless)
+        browser = await BrowserService.ensureBrowser({ headless: isHeadless });
+
         const pages = await browser.pages();
-        const page = pages[0];
+        const page = pages.length > 0 ? pages[0] : await browser.newPage();
         const scraper = new EbayScraper(page);
+
+        // If we restarted from GUI to Headless for GBFP, restore the search results page
+        if (
+            previousUrl &&
+            previousUrl.includes('ebay.') &&
+            !page.url().includes('ebay.')
+        ) {
+            console.log(
+                `🔁 GBFP: Restoring search results page in headless browser: ${previousUrl}`,
+            );
+            await page
+                .goto(previousUrl, {
+                    waitUntil: 'networkidle2',
+                    timeout: 60000,
+                })
+                .catch(() => {});
+            await delay(1500);
+        }
 
         // NAVIGATION LOGIC
         if (action === 'search') {
