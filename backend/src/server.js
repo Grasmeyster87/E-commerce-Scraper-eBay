@@ -37,10 +37,11 @@ app.post('/api/scrape', async (req, res) => {
         saveProductMedia = false,
         scrapeWithoutGB = false,
         scrapeWithGBFP = false,
+        deferProductScraping = false,
     } = req.body;
     try {
         console.log(
-            `🚀 Backend received -> Action: [${action.toUpperCase()}] | Table: ${activeTable || 'None'} | ScrapeProducts: ${scrapeProductPages} | SaveHtml: ${saveProductHtml} | SaveMedia: ${saveProductMedia} | WithoutGB: ${scrapeWithoutGB} | WithGBFP: ${scrapeWithGBFP}`,
+            `🚀 Backend received -> Action: [${action.toUpperCase()}] | Table: ${activeTable || 'None'} | ScrapeProducts: ${scrapeProductPages} | SaveHtml: ${saveProductHtml} | SaveMedia: ${saveProductMedia} | WithoutGB: ${scrapeWithoutGB} | WithGBFP: ${scrapeWithGBFP} | DeferProducts: ${deferProductScraping}`,
         );
 
         // Collect raw data from the website
@@ -78,8 +79,8 @@ app.post('/api/scrape', async (req, res) => {
             await DBService.insertCards(dbSettings, tableName, processedCards);
         }
 
-        // Скрапінг сторінок кожного товару (якщо опція увімкнена)
-        if (scrapeProductPages && processedCards.length > 0) {
+        // Скрапінг сторінок кожного товару (якщо опція увімкнена і не передана для інтерактивного модального вікна)
+        if (scrapeProductPages && processedCards.length > 0 && !deferProductScraping) {
             console.log(`🛍️ Початок скрапінгу детальних сторінок для ${processedCards.length} товарів...`);
             await ProductScraperService.scrapeProductsForCards(
                 processedCards,

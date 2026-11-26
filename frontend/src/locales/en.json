@@ -164,6 +164,8 @@
   },
   "existingTableScrape": {
     "title": "📦 Scraping an Existing Product Table",
+    "newSearchTitle": "🛍️ Product Scraping: New Search",
+    "logNewSearchStarted": "🔍 Created new table for search: {tableName}",
     "table": "Table: {tableName}",
     "folder": "Goods Folder",
     "statusPreparing": "Preparing...",

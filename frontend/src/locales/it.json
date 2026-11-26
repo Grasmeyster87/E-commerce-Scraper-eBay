@@ -164,6 +164,8 @@
   },
   "existingTableScrape": {
     "title": "📦 Scraping di una tabella di prodotti esistente",
+    "newSearchTitle": "🛍️ Scraping dei prodotti: Nuova ricerca",
+    "logNewSearchStarted": "🔍 Creata nuova tabella per la ricerca: {tableName}",
     "table": "Tabella: {tableName}",
     "folder": "Cartella merci",
     "statusPreparing": "Preparazione...",

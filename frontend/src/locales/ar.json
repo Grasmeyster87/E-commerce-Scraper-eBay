@@ -164,6 +164,8 @@
   },
   "existingTableScrape": {
     "title": "📦 كشط جدول منتجات موجود",
+    "newSearchTitle": "🛍️ كشط المنتجات: بحث جديد",
+    "logNewSearchStarted": "🔍 تم إنشاء جدول جديد للبحث: {tableName}",
     "table": "الجدول: {tableName}",
     "folder": "مجلد المنتجات",
     "statusPreparing": "جارٍ التحضير...",

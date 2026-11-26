@@ -265,6 +265,7 @@ function App() {
                 saveProductMedia: saveProductMediaRef.current,
                 scrapeWithoutGB: scrapeWithoutGBRef.current,
                 scrapeWithGBFP: scrapeWithGBFPref.current,
+                deferProductScraping: scrapeProductPagesRef.current,
             });
 
             if (!response.data.success)
@@ -282,6 +283,21 @@ function App() {
             }
 
             setPagination(response.data.pagination);
+
+            // Якщо увімкнено скрапінг сторінок товарів — запускаємо інтерактивне вікно зі зразка ExistingTableScrapeModal
+            if (
+                scrapeProductPagesRef.current &&
+                response.data.data &&
+                response.data.data.length > 0 &&
+                !isAutoCall
+            ) {
+                setScrapeModalConfig({
+                    isOpen: true,
+                    tableName: newTableName,
+                    autoStart: true,
+                    mode: action === 'search' ? 'new_search' : 'existing',
+                });
+            }
 
             // Automated multi-page sequence validation
             if (
@@ -357,15 +373,25 @@ function App() {
         setLinkCheckState({ isOpen: true, tableName: activeTable });
     };
 
-    // State for Scraping Existing Table Modal
-    const [isScrapeExistingModalOpen, setIsScrapeExistingModalOpen] = useState(false);
+    // State for Product Scraping Interactive Modal (Existing Table & New Search)
+    const [scrapeModalConfig, setScrapeModalConfig] = useState({
+        isOpen: false,
+        tableName: '',
+        autoStart: false,
+        mode: 'existing',
+    });
 
     const handleOpenScrapeExistingTable = () => {
         if (!activeTable) {
             alert(t('existingTableScrape.noActiveTableAlert') || 'Будь ласка, оберіть активну таблицю.');
             return;
         }
-        setIsScrapeExistingModalOpen(true);
+        setScrapeModalConfig({
+            isOpen: true,
+            tableName: activeTable,
+            autoStart: false,
+            mode: 'existing',
+        });
     };
 
     /**
@@ -958,13 +984,15 @@ function App() {
             />
 
             <ExistingTableScrapeModal
-                isOpen={isScrapeExistingModalOpen}
+                isOpen={scrapeModalConfig.isOpen}
                 onClose={() => {
-                    setIsScrapeExistingModalOpen(false);
+                    setScrapeModalConfig((prev) => ({ ...prev, isOpen: false }));
                     fetchAvailableTables();
                 }}
-                tableName={activeTable}
+                tableName={scrapeModalConfig.tableName || activeTable}
                 dbSettings={dbSettings}
+                autoStart={scrapeModalConfig.autoStart}
+                mode={scrapeModalConfig.mode}
                 options={{
                     saveProductHtml,
                     saveProductMedia,

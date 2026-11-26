@@ -10,6 +10,9 @@ export default function ExistingTableScrapeModal({
     tableName,
     dbSettings,
     options = {},
+    autoStart = false,
+    mode = 'existing',
+    title = null,
 }) {
     const { t } = useTranslation();
     const [status, setStatus] = useState('idle'); // idle, starting, running, paused, finished, cancelled, error
@@ -26,6 +29,8 @@ export default function ExistingTableScrapeModal({
     const [currentJobId, setCurrentJobId] = useState(null);
     const [isPaused, setIsPaused] = useState(false);
     const logsEndRef = useRef(null);
+    const eventSourceRef = useRef(null);
+    const startJobRef = useRef(null);
 
     // Auto-scroll to bottom of logs
     useEffect(() => {
@@ -34,98 +39,15 @@ export default function ExistingTableScrapeModal({
         }
     }, [logs]);
 
-    // Initial check of table status and folder upon opening modal
+    // Cleanup EventSource on component unmount
     useEffect(() => {
-        if (!isOpen || !tableName) return;
-
-        setStatus('idle');
-        setLogs([]);
-        setCurrentJobId(null);
-        setIsPaused(false);
-
-        axios
-            .post(`${backendUrl}/api/scrape-existing/status`, {
-                tableName,
-                dbSettings,
-            })
-            .then((res) => {
-                if (res.data.success) {
-                    const data = res.data;
-                    setStats({
-                        totalCards: data.totalCards || 0,
-                        completedCount: data.completedCount || 0,
-                        pendingCount: data.pendingCount || 0,
-                        isFullyFinished: !!data.isFullyFinished,
-                        folderPath: data.folderPath || '',
-                        folderExists: !!data.folderExists,
-                    });
-                    setProgress({
-                        current: data.completedCount || 0,
-                        total: data.totalCards || 0,
-                    });
-
-                    const initialLogs = [
-                        {
-                            type: 'info',
-                            text: t('existingTableScrape.logCheckingFolder', {
-                                folder: data.folderPath,
-                            }),
-                        },
-                        {
-                            type: data.folderExists ? 'success' : 'info',
-                            text: data.folderExists
-                                ? t('existingTableScrape.logFolderExists', {
-                                      folder: data.folderPath,
-                                  })
-                                : t('existingTableScrape.logFolderCreated', {
-                                      folder: data.folderPath,
-                                  }),
-                        },
-                        {
-                            type: 'info',
-                            text: t('existingTableScrape.logExistingFound', {
-                                count: data.completedCount,
-                                total: data.totalCards,
-                            }),
-                        },
-                    ];
-
-                    if (data.isFullyFinished) {
-                        initialLogs.push({
-                            type: 'success',
-                            text: t('existingTableScrape.statusAllCompleted'),
-                        });
-                        setStatus('finished');
-                    } else {
-                        initialLogs.push({
-                            type: 'warning',
-                            text: t('existingTableScrape.logRemaining', {
-                                count: data.pendingCount,
-                            }),
-                        });
-                    }
-
-                    if (Array.isArray(data.recentLogs) && data.recentLogs.length > 0) {
-                        data.recentLogs.forEach((line) => {
-                            initialLogs.push({ type: 'secondary', text: line });
-                        });
-                    }
-
-                    setLogs(initialLogs);
-                }
-            })
-            .catch((err) => {
-                console.error('Failed to fetch existing table status:', err);
-                setLogs([
-                    {
-                        type: 'error',
-                        text: t('existingTableScrape.serverError', {
-                            message: err.message,
-                        }),
-                    },
-                ]);
-            });
-    }, [isOpen, tableName, dbSettings, t]);
+        return () => {
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+                eventSourceRef.current = null;
+            }
+        };
+    }, []);
 
     // Handle starting the scraping job
     const handleStartJob = async () => {
@@ -134,6 +56,11 @@ export default function ExistingTableScrapeModal({
         setStatus('starting');
         setIsPaused(false);
 
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+        }
+
         try {
             const res = await axios.post(`${backendUrl}/api/scrape-existing/start`, {
                 tableName,
@@ -141,6 +68,8 @@ export default function ExistingTableScrapeModal({
                 saveProductHtml: options.saveProductHtml,
                 saveProductMedia: options.saveProductMedia,
                 pageDelays: options.pageDelays,
+                scrapeWithoutGB: options.scrapeWithoutGB,
+                scrapeWithGBFP: options.scrapeWithGBFP,
             });
 
             if (!res.data.success || !res.data.jobId) {
@@ -155,6 +84,7 @@ export default function ExistingTableScrapeModal({
             const eventSource = new EventSource(
                 `${backendUrl}/api/scrape-existing/stream/${jobId}`,
             );
+            eventSourceRef.current = eventSource;
 
             eventSource.onmessage = (event) => {
                 try {
@@ -262,6 +192,7 @@ export default function ExistingTableScrapeModal({
                             ]);
                         }
                         eventSource.close();
+                        eventSourceRef.current = null;
                     } else if (data.type === 'error') {
                         setStatus('error');
                         setLogs((prev) => [
@@ -274,6 +205,7 @@ export default function ExistingTableScrapeModal({
                             },
                         ]);
                         eventSource.close();
+                        eventSourceRef.current = null;
                     }
                 } catch (parseErr) {
                     console.error('SSE JSON parse error:', parseErr);
@@ -282,6 +214,7 @@ export default function ExistingTableScrapeModal({
 
             eventSource.onerror = () => {
                 eventSource.close();
+                eventSourceRef.current = null;
             };
         } catch (err) {
             console.error('Error starting scrape job:', err);
@@ -297,6 +230,139 @@ export default function ExistingTableScrapeModal({
             ]);
         }
     };
+
+    startJobRef.current = handleStartJob;
+
+    // Initial check of table status and folder upon opening modal
+    useEffect(() => {
+        if (!isOpen || !tableName) return;
+
+        setStatus('idle');
+        setLogs([]);
+        setCurrentJobId(null);
+        setIsPaused(false);
+
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
+        }
+
+        let isCancelled = false;
+        let autoStartTimer = null;
+
+        axios
+            .post(`${backendUrl}/api/scrape-existing/status`, {
+                tableName,
+                dbSettings,
+            })
+            .then((res) => {
+                if (isCancelled) return;
+                if (res.data.success) {
+                    const data = res.data;
+                    setStats({
+                        totalCards: data.totalCards || 0,
+                        completedCount: data.completedCount || 0,
+                        pendingCount: data.pendingCount || 0,
+                        isFullyFinished: !!data.isFullyFinished,
+                        folderPath: data.folderPath || '',
+                        folderExists: !!data.folderExists,
+                    });
+                    setProgress({
+                        current: data.completedCount || 0,
+                        total: data.totalCards || 0,
+                    });
+
+                    const initialLogs = [];
+                    if (mode === 'new_search') {
+                        initialLogs.push({
+                            type: 'info',
+                            text: t('existingTableScrape.logNewSearchStarted', {
+                                tableName,
+                            }),
+                        });
+                    }
+
+                    initialLogs.push(
+                        {
+                            type: 'info',
+                            text: t('existingTableScrape.logCheckingFolder', {
+                                folder: data.folderPath,
+                            }),
+                        },
+                        {
+                            type: data.folderExists ? 'success' : 'info',
+                            text: data.folderExists
+                                ? t('existingTableScrape.logFolderExists', {
+                                      folder: data.folderPath,
+                                  })
+                                : t('existingTableScrape.logFolderCreated', {
+                                      folder: data.folderPath,
+                                  }),
+                        },
+                        {
+                            type: 'info',
+                            text: t('existingTableScrape.logExistingFound', {
+                                count: data.completedCount,
+                                total: data.totalCards,
+                            }),
+                        },
+                    );
+
+                    if (data.isFullyFinished) {
+                        initialLogs.push({
+                            type: 'success',
+                            text: t('existingTableScrape.statusAllCompleted'),
+                        });
+                        setStatus('finished');
+                    } else {
+                        initialLogs.push({
+                            type: 'warning',
+                            text: t('existingTableScrape.logRemaining', {
+                                count: data.pendingCount,
+                            }),
+                        });
+                    }
+
+                    if (Array.isArray(data.recentLogs) && data.recentLogs.length > 0) {
+                        data.recentLogs.forEach((line) => {
+                            initialLogs.push({ type: 'secondary', text: line });
+                        });
+                    }
+
+                    setLogs(initialLogs);
+
+                    // Auto-start if requested and items are remaining
+                    if (
+                        autoStart &&
+                        !data.isFullyFinished &&
+                        (data.pendingCount > 0 || data.totalCards > 0)
+                    ) {
+                        autoStartTimer = setTimeout(() => {
+                            if (!isCancelled) {
+                                startJobRef.current?.();
+                            }
+                        }, 400);
+                    }
+                }
+            })
+            .catch((err) => {
+                if (isCancelled) return;
+                console.error('Failed to fetch existing table status:', err);
+                setLogs([
+                    {
+                        type: 'error',
+                        text: t('existingTableScrape.serverError', {
+                            message: err.message,
+                        }),
+                    },
+                ]);
+            });
+
+        return () => {
+            isCancelled = true;
+            if (autoStartTimer) clearTimeout(autoStartTimer);
+        };
+    }, [isOpen, tableName, dbSettings, autoStart, mode, t]);
 
     // Handle Pause/Resume
     const handleTogglePause = async () => {
@@ -328,6 +394,10 @@ export default function ExistingTableScrapeModal({
                 action: 'cancel',
             });
             setStatus('cancelled');
+            if (eventSourceRef.current) {
+                eventSourceRef.current.close();
+                eventSourceRef.current = null;
+            }
         } catch (err) {
             console.error('Error cancelling job:', err);
         }
@@ -340,6 +410,10 @@ export default function ExistingTableScrapeModal({
             );
             if (!confirmClose) return;
             handleCancelJob();
+        }
+        if (eventSourceRef.current) {
+            eventSourceRef.current.close();
+            eventSourceRef.current = null;
         }
         onClose();
     };
@@ -361,11 +435,14 @@ export default function ExistingTableScrapeModal({
                 <div className="flex justify-between items-center px-6 py-4 border-b border-slate-800 bg-slate-950/40">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-500/40 flex items-center justify-center text-cyan-400 text-lg shadow-inner">
-                            📦
+                            {mode === 'new_search' ? '🛍️' : '📦'}
                         </div>
                         <div>
                             <h3 className="text-base font-bold text-slate-100 flex items-center gap-2">
-                                {t('existingTableScrape.title')}
+                                {title ||
+                                    (mode === 'new_search'
+                                        ? t('existingTableScrape.newSearchTitle')
+                                        : t('existingTableScrape.title'))}
                             </h3>
                             <p className="text-xs font-mono text-cyan-400 truncate max-w-md">
                                 {tableName}

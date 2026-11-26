@@ -164,6 +164,8 @@
   },
   "existingTableScrape": {
     "title": "📦 Скрапінг існуючої таблиці товарів",
+    "newSearchTitle": "🛍️ Скрапінг товарів: Новий пошук",
+    "logNewSearchStarted": "🔍 Створено нову таблицю для пошуку: {tableName}",
     "table": "Таблиця: {tableName}",
     "folder": "Папка товарів",
     "statusPreparing": "Підготовка...",

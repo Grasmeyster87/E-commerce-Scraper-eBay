@@ -164,6 +164,8 @@
   },
   "existingTableScrape": {
     "title": "📦 גרידת טבלת מוצרים קיימת",
+    "newSearchTitle": "🛍️ גרידת מוצרים: חיפוש חדש",
+    "logNewSearchStarted": "🔍 נוצרה טבלה חדשה לחיפוש: {tableName}",
     "table": "טבלה: {tableName}",
     "folder": "תיקיית מוצרים",
     "statusPreparing": "מכין...",
